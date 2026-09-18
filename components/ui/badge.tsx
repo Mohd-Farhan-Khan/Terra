@@ -14,5 +14,14 @@ const toneClasses = {
 };
 
 export function Badge({ className, tone = "neutral", ...props }: BadgeProps) {
-  return <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium", toneClasses[tone], className)} {...props} />;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+        toneClasses[tone],
+        className,
+      )}
+      {...props}
+    />
+  );
 }

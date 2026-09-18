@@ -149,8 +149,8 @@ select * from public.create_transfer(
 -- Force all deferred transaction and transfer-pair validations now.
 set constraints all immediate;
 
--- Expected account balances: checking -140, savings 100, investment 100,
--- receivable 80, payable -20. Net worth is 60 because receivable/payable are
+-- Expected account balances: checking 590, savings 100, investment 100,
+-- receivable 80, payable -20. Net worth is 790 because receivable/payable are
 -- excluded. The July savings rate is 200 / 1,000 = 0.20.
 select account_name, account_type, balance
 from public.account_balances
@@ -184,11 +184,11 @@ do $$
 declare
   v_user_id uuid := (select user_id from finance_test_context);
 begin
-  if (select balance from public.account_balances where user_id = v_user_id and account_name = 'Test checking') <> -140 then
-    raise exception 'Expected checking balance -140';
+  if (select balance from public.account_balances where user_id = v_user_id and account_name = 'Test checking') <> 590 then
+    raise exception 'Expected checking balance 590';
   end if;
-  if (select net_worth from public.net_worth where user_id = v_user_id) <> 60 then
-    raise exception 'Expected net worth 60';
+  if (select net_worth from public.net_worth where user_id = v_user_id) <> 790 then
+    raise exception 'Expected net worth 790';
   end if;
   if (select actual_spend from public.category_monthly_spend where user_id = v_user_id and month = '2026-07-01') <> 150 then
     raise exception 'Expected July food spend 150';

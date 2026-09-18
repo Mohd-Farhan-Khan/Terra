@@ -25,17 +25,11 @@ const sizeClasses: Record<ButtonSize, string> = {
   lg: "h-12 px-5 text-base",
 };
 
-export function Button({
-  className,
-  variant = "primary",
-  size = "md",
-  type = "button",
-  ...props
-}: ButtonProps) {
+export function Button({ className, variant = "primary", size = "md", type = "button", ...props }: ButtonProps) {
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-[8px] border font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-45",
+        "inline-flex items-center justify-center gap-2 rounded-[8px] border font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none disabled:pointer-events-none disabled:opacity-45",
         variantClasses[variant],
         sizeClasses[size],
         className,

@@ -6,11 +6,19 @@ function MonthContext() {
   return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date());
 }
 
-export function AppShell({ children, title, showHeader = true }: { children: ReactNode; title: string; showHeader?: boolean }) {
+export function AppShell({
+  children,
+  title,
+  showHeader = true,
+}: {
+  children: ReactNode;
+  title: string;
+  showHeader?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-terra-cream lg:pl-64">
       <AppNavigation />
-      <div className="min-h-screen">
+      <div className="min-h-screen min-w-0">
         {showHeader && (
           <header className="hidden h-20 items-center justify-between border-b border-terra-tan px-8 lg:flex xl:px-12">
             <p className="font-terra-heading text-2xl text-terra-ink">{title}</p>
@@ -20,7 +28,7 @@ export function AppShell({ children, title, showHeader = true }: { children: Rea
             </div>
           </header>
         )}
-        <main className="mx-auto w-full max-w-7xl px-5 py-9 sm:px-8 lg:px-10 lg:py-12 xl:px-12">
+        <main className="mx-auto w-full min-w-0 max-w-7xl px-5 py-9 sm:px-8 lg:px-10 lg:py-12 xl:px-12">
           <div className="mb-8 flex items-end justify-between gap-4 lg:hidden">
             <h1 className="font-terra-heading text-4xl leading-none text-terra-ink">{title}</h1>
             <span className="pb-1 text-sm text-terra-gray">{MonthContext()}</span>

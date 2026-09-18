@@ -7,7 +7,6 @@ export const queryKeys = {
   activeCategories: ["categories", "active"] as const,
   dashboard: (month: string) => ["dashboard", month] as const,
   transactions: (filters: Record<string, string | number>) => ["transactions", filters] as const,
-  transactionFilters: ["transaction-filters"] as const,
   accountOverview: ["account-overview"] as const,
   budgets: (month: string) => ["budgets", month] as const,
   counterparties: ["counterparties"] as const,
@@ -35,7 +34,6 @@ export async function invalidateReferenceData(queryClient: QueryClient) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
     queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.transactionFilters }),
     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
     queryClient.invalidateQueries({ queryKey: ["budgets"] }),
     queryClient.invalidateQueries({ queryKey: ["recurring"] }),

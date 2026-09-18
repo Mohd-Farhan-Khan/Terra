@@ -2,5 +2,9 @@ import { CounterpartiesScreen } from "@/components/counterparties/counterparties
 import { AppShell } from "@/components/layout/app-shell";
 
 export default function CounterpartiesPage() {
-  return <AppShell showHeader={false} title="Counterparties"><CounterpartiesScreen /></AppShell>;
+  return (
+    <AppShell showHeader={false} title="Counterparties">
+      <CounterpartiesScreen />
+    </AppShell>
+  );
 }

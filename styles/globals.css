@@ -3,11 +3,11 @@
 @theme {
   --color-terra-cream: #fbf7f0;
   --color-terra-ink: #2b2621;
-  --color-terra-clay: #c1673b;
-  --color-terra-sage: #7a8b6f;
+  --color-terra-clay: #a44f2d;
+  --color-terra-sage: #5f7053;
   --color-terra-brick: #a8503f;
   --color-terra-tan: #d8cfc0;
-  --color-terra-gray: #8c8375;
+  --color-terra-gray: #746b5f;
   --color-terra-paper: #fffdf9;
   --color-terra-paper-soft: #f7f2ea;
   --color-terra-clay-deep: #aa552f;
@@ -19,11 +19,11 @@
   --color-terra-brick-deep: #8f4235;
   --color-terra-brick-wash: #f9e9e6;
   --color-terra-brick-line: #ddbbb4;
-  --color-terra-muted: #aaa196;
+  --color-terra-muted: #71675c;
   --color-terra-track: #eee7dc;
 
   --shadow-terra-modal: 0 18px 50px rgba(43, 38, 33, 0.12);
-  --shadow-terra-panel: -18px 0 50px rgba(43, 38, 33, 0.10);
+  --shadow-terra-panel: -18px 0 50px rgba(43, 38, 33, 0.1);
   --shadow-terra-segment: 0 1px 2px rgba(43, 38, 33, 0.08);
 
   --font-terra-heading: var(--font-fraunces), Georgia, serif;
@@ -38,124 +38,360 @@ body {
   margin: 0;
   background: var(--color-terra-cream);
   color: var(--color-terra-ink);
+  overflow-x: hidden;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="tab"]:focus-visible,
+[role="switch"]:focus-visible {
+  outline: 2px solid var(--color-terra-clay-deep) !important;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1023px) {
+  .settings-enter .overflow-x-auto {
+    overflow-x: hidden;
+  }
+  .settings-enter .overflow-x-auto table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+  .settings-enter .overflow-x-auto th:nth-child(2),
+  .settings-enter .overflow-x-auto td:nth-child(2),
+  .settings-enter .overflow-x-auto th:nth-child(3),
+  .settings-enter .overflow-x-auto td:nth-child(3) {
+    display: none;
+  }
+  .settings-enter .overflow-x-auto th:first-child,
+  .settings-enter .overflow-x-auto td:first-child {
+    width: 66%;
+  }
+  .settings-enter .overflow-x-auto td:first-child > div {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .settings-enter .overflow-x-auto td:first-child span {
+    overflow-wrap: anywhere;
+  }
+  .settings-enter .overflow-x-auto th:last-child,
+  .settings-enter .overflow-x-auto td:last-child {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
 }
 
 .auth-canvas {
   background:
-    radial-gradient(circle at 50% 44%, rgba(255, 253, 249, .95) 0 18%, rgba(251, 247, 240, .2) 52%),
+    radial-gradient(circle at 50% 44%, rgba(255, 253, 249, 0.95) 0 18%, rgba(251, 247, 240, 0.2) 52%),
     var(--color-terra-cream);
 }
 
 .auth-card {
   border-radius: 1.35rem;
-  box-shadow: 0 22px 58px rgba(79, 61, 41, .06), 0 2px 3px rgba(79, 61, 41, .025);
-  animation: auth-card-in .55s cubic-bezier(.2, .8, .2, 1) both;
+  box-shadow:
+    0 22px 58px rgba(79, 61, 41, 0.06),
+    0 2px 3px rgba(79, 61, 41, 0.025);
+  animation: auth-card-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.auth-entrance { animation: auth-copy-in .65s .08s cubic-bezier(.2, .8, .2, 1) both; }
-.auth-form { animation: auth-copy-in .65s .16s cubic-bezier(.2, .8, .2, 1) both; }
+.auth-entrance {
+  animation: auth-copy-in 0.22s 0.03s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.auth-form {
+  animation: auth-copy-in 0.22s 0.06s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
 
 .auth-input {
   width: 100%;
   border: 1px solid var(--color-terra-gray);
-  border-radius: .7rem;
-  background: rgba(255, 255, 255, .55);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.55);
   color: var(--color-terra-ink);
-  padding: .82rem 1rem;
+  padding: 0.82rem 1rem;
   font: inherit;
   outline: none;
-  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
 }
 
-.auth-input::placeholder { color: #aaa196; }
-.auth-input:focus { border-color: var(--color-terra-clay); background: #fff; box-shadow: 0 0 0 3px rgba(193, 103, 59, .12); }
-.auth-checkbox { accent-color: var(--color-terra-clay); height: 1.05rem; width: 1.05rem; }
+.auth-input::placeholder {
+  color: #aaa196;
+}
+.auth-input:focus {
+  border-color: var(--color-terra-clay);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(193, 103, 59, 0.12);
+}
+.auth-checkbox {
+  accent-color: var(--color-terra-clay);
+  height: 1.05rem;
+  width: 1.05rem;
+}
 
 .auth-submit {
   border: 0;
-  border-radius: .72rem;
+  border-radius: 0.72rem;
   background: var(--color-terra-clay);
   color: white;
   cursor: pointer;
-  padding: .9rem 1.2rem;
+  padding: 0.9rem 1.2rem;
   font: 600 1.05rem var(--font-terra-body);
-  transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.auth-submit:hover:not(:disabled) { background: var(--color-terra-clay-deep); box-shadow: 0 9px 18px rgba(170, 85, 47, .2); transform: translateY(-1px); }
-.auth-submit:focus-visible { outline: 3px solid rgba(193, 103, 59, .28); outline-offset: 3px; }
-.auth-submit:disabled { cursor: wait; opacity: .72; }
-
-@keyframes auth-card-in { from { opacity: 0; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes auth-copy-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .auth-card, .auth-entrance, .auth-form { animation: none; }
-  .auth-submit { transition: none; }
+.auth-submit:hover:not(:disabled) {
+  background: var(--color-terra-clay-deep);
+  box-shadow: 0 9px 18px rgba(170, 85, 47, 0.2);
+  transform: translateY(-1px);
+}
+.auth-submit:focus-visible {
+  outline: 3px solid rgba(193, 103, 59, 0.28);
+  outline-offset: 3px;
+}
+.auth-submit:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
-.dashboard-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.dashboard-enter > :nth-child(2) { animation-delay: .04s; }
-.dashboard-enter > :nth-child(3) { animation-delay: .08s; }
-.dashboard-enter > :nth-child(4) { animation-delay: .12s; }
-.dashboard-stagger { transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.dashboard-stagger:hover { border-color: var(--color-terra-clay-line); box-shadow: 0 11px 25px rgba(70, 54, 35, .06); transform: translateY(-1px); }
-
-@keyframes dashboard-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-enter > * { animation: none; }
-  .dashboard-stagger, .dashboard-stagger:hover { transition: none; transform: none; }
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes auth-copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.transactions-enter > * { animation: dashboard-rise .42s cubic-bezier(.2, .8, .2, 1) both; }
-.transactions-enter > :nth-child(2) { animation-delay: .05s; }
-.transactions-enter > :nth-child(3) { animation-delay: .09s; }
-.transactions-enter > :nth-child(4) { animation-delay: .13s; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-card,
+  .auth-entrance,
+  .auth-form {
+    animation: none;
+  }
+  .auth-submit {
+    transition: none;
+  }
+}
 
-.accounts-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.accounts-enter > :nth-child(2) { animation-delay: .05s; }
-.accounts-enter > :nth-child(3) { animation-delay: .09s; }
-.accounts-enter > :nth-child(4) { animation-delay: .13s; }
-.account-card { transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.account-card:hover { border-color: var(--color-terra-clay-line); box-shadow: 0 11px 25px rgba(70, 54, 35, .06); transform: translateY(-2px); }
+.dashboard-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.dashboard-enter > :nth-child(2) {
+  animation-delay: 0.04s;
+}
+.dashboard-enter > :nth-child(3) {
+  animation-delay: 0.08s;
+}
+.dashboard-enter > :nth-child(4) {
+  animation-delay: 0.12s;
+}
+.dashboard-stagger {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.dashboard-stagger:hover {
+  border-color: var(--color-terra-clay-line);
+  box-shadow: 0 11px 25px rgba(70, 54, 35, 0.06);
+  transform: translateY(-1px);
+}
 
-.budgets-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.budgets-enter > :nth-child(2) { animation-delay: .05s; }
-.budgets-enter > :nth-child(3) { animation-delay: .09s; }
-.budgets-enter > :nth-child(4) { animation-delay: .13s; }
-.budget-row { transition: background-color .2s ease; }
-.budget-row:hover { background: rgba(247, 242, 234, .65); }
-
-.recurring-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.recurring-enter > :nth-child(2) { animation-delay: .05s; }
-.recurring-enter > :nth-child(3) { animation-delay: .09s; }
-.recurring-enter > :nth-child(4) { animation-delay: .13s; }
-.recurring-row { transition: background-color .2s ease; }
-.recurring-row:hover { background: rgba(247, 242, 234, .7); }
-
-.counterparties-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.counterparties-enter > :nth-child(2) { animation-delay: .05s; }
-.counterparties-enter > :nth-child(3) { animation-delay: .09s; }
-.counterparties-enter > :nth-child(4) { animation-delay: .13s; }
-.counterparty-row { transition: background-color .2s ease; }
-.counterparty-row:hover { background: rgba(247, 242, 234, .7); }
-
-.goals-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.goals-enter > :nth-child(2) { animation-delay: .05s; }
-.goals-enter > :nth-child(3) { animation-delay: .09s; }
-.goal-card { transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.goal-card:hover { border-color: var(--color-terra-clay-line); box-shadow: 0 11px 25px rgba(70, 54, 35, .06); transform: translateY(-2px); }
-
-.settings-enter > * { animation: dashboard-rise .45s cubic-bezier(.2, .8, .2, 1) both; }
-.settings-enter > :nth-child(2) { animation-delay: .05s; }
-.settings-enter > :nth-child(3) { animation-delay: .09s; }
-.settings-enter > :nth-child(4) { animation-delay: .13s; }
-.settings-row { transition: background-color .2s ease; }
-.settings-row:hover { background: rgba(247, 242, 234, .7); }
+@keyframes dashboard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .transactions-enter > *, .accounts-enter > *, .budgets-enter > *, .recurring-enter > *, .counterparties-enter > *, .goals-enter > *, .settings-enter > * { animation: none; }
-  .goal-card, .goal-card:hover { transition: none; transform: none; }
-  .account-card, .account-card:hover { transition: none; transform: none; }
+  .dashboard-enter > * {
+    animation: none;
+  }
+  .dashboard-stagger,
+  .dashboard-stagger:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+.transactions-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.transactions-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.transactions-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.transactions-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+
+.accounts-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.accounts-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.accounts-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.accounts-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+.account-card {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.account-card:hover {
+  border-color: var(--color-terra-clay-line);
+  box-shadow: 0 8px 20px rgba(70, 54, 35, 0.05);
+  transform: translateY(-1px);
+}
+
+.budgets-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.budgets-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.budgets-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.budgets-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+.budget-row {
+  transition: background-color 0.2s ease;
+}
+.budget-row:hover {
+  background: rgba(247, 242, 234, 0.65);
+}
+
+.recurring-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.recurring-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.recurring-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.recurring-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+.recurring-row {
+  transition: background-color 0.2s ease;
+}
+.recurring-row:hover {
+  background: rgba(247, 242, 234, 0.7);
+}
+
+.counterparties-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.counterparties-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.counterparties-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.counterparties-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+.counterparty-row {
+  transition: background-color 0.2s ease;
+}
+.counterparty-row:hover {
+  background: rgba(247, 242, 234, 0.7);
+}
+
+.goals-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.goals-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.goals-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.goal-card {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.goal-card:hover {
+  border-color: var(--color-terra-clay-line);
+  box-shadow: 0 8px 20px rgba(70, 54, 35, 0.05);
+  transform: translateY(-1px);
+}
+
+.settings-enter > * {
+  animation: dashboard-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.settings-enter > :nth-child(2) {
+  animation-delay: 0.05s;
+}
+.settings-enter > :nth-child(3) {
+  animation-delay: 0.09s;
+}
+.settings-enter > :nth-child(4) {
+  animation-delay: 0.13s;
+}
+.settings-row {
+  transition: background-color 0.2s ease;
+}
+.settings-row:hover {
+  background: rgba(247, 242, 234, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transactions-enter > *,
+  .accounts-enter > *,
+  .budgets-enter > *,
+  .recurring-enter > *,
+  .counterparties-enter > *,
+  .goals-enter > *,
+  .settings-enter > * {
+    animation: none;
+  }
+  .goal-card,
+  .goal-card:hover {
+    transition: none;
+    transform: none;
+  }
+  .account-card,
+  .account-card:hover {
+    transition: none;
+    transform: none;
+  }
 }

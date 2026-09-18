@@ -26,11 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${headingFont.variable} ${bodyFont.variable} h-full antialiased`}
-    >
-      <body className="font-terra-body min-h-full flex flex-col"><QueryProvider>{children}</QueryProvider></body>
+    <html lang="en" className={`${headingFont.variable} ${bodyFont.variable} h-full antialiased`}>
+      <body className="font-terra-body min-h-full flex flex-col">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }
