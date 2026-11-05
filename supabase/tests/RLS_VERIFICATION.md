@@ -2,11 +2,11 @@
 
 ## Status
 
-Blocked on 2026-09-18: the configured Supabase hostname could not be resolved from the command line (`getaddrinfo ENOTFOUND`). No test users or fixture records were created, and this check is deliberately **not** marked verified.
+Blocked on 2026-11-05: the restored project is reachable and Healthy, but `npm run test:database` cannot currently create its two disposable Auth users because the project’s email-delivery limit is exhausted (the dashboard reports a limit of two emails per hour). The script uses unique `mailinator.com` fixture addresses because the project rejects reserved example domains. No successful two-user run completed, and this check is deliberately **not** marked verified.
 
 ## Command
 
-Run `npm run test:database` after the configured Supabase project is reachable. The command creates two distinct authenticated test users and seeds sentinel records only for the first user.
+Run `npm run test:database` after the configured Supabase project is reachable and its Auth email quota permits two sign-ups. The command creates two distinct authenticated test users and seeds sentinel records only for the first user.
 
 On a successful run, the command overwrites this file with a timestamped `verified` result after asserting all of the following:
 

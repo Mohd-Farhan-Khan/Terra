@@ -49,7 +49,7 @@ function assertNoRows(result, label) {
 
 async function signUp(label) {
   const instance = client();
-  const email = `terra-${label}-${testId}@example.test`;
+  const email = `terra-${label}-${testId}@mailinator.com`;
   const { data, error } = await instance.auth.signUp({ email, password: testPassword });
   if (error) fail(`create ${label} test user: ${error.message}`);
   if (!data.user || !data.session) {

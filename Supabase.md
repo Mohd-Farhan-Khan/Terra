@@ -14,7 +14,7 @@ Keep the database password in a password manager. Terra does not need it during 
 ## 2. Get the two application credentials
 
 1. In Supabase, open your new project.
-2. Go to **Project Settings → API** (or use the **Connect** dialog).
+2. Use the **Connect** dialog (or go to **Project Settings → API Keys**).
 3. Copy the **Project URL** and **Publishable key**.
 
 These are the only credentials Terra needs:
@@ -105,7 +105,7 @@ The following command creates two test users and verifies financial calculations
 npm run test:database
 ```
 
-Run it only against a dedicated development or staging Supabase project, because it creates test users and records. A successful run updates `supabase/tests/RLS_VERIFICATION.md` with a timestamped verified result.
+Run it only against a dedicated development or staging Supabase project, because it creates test users and records. It requires email/password Auth sign-up to be available and below the project’s email rate limit. A successful run updates `supabase/tests/RLS_VERIFICATION.md` with a timestamped verified result; a blocked result is not evidence that RLS passed.
 
 ## 8. Add the connection to Vercel
 
@@ -128,3 +128,10 @@ Do not add a Supabase service-role key to Vercel for Terra. Database access from
 | Database/table error in the app               | Run `npx supabase db push` and confirm every migration completed.                                     |
 | A user sees no data                           | This is normally RLS working. Make sure the records were created while signed in as that same user.   |
 | `test:database` cannot connect                | Verify the Project URL is current and that DNS/network access to your Supabase project is available.  |
+| `test:database` reports an email rate limit   | Wait for the Auth email quota to reset (or change the limit where the plan permits), then rerun once. |
+
+## Further project documentation
+
+- [Architecture and data model](docs/ARCHITECTURE.md) explains routes, tables, views, RPCs, and the RLS boundary.
+- [Financial rules and UI coverage](docs/FINANCIAL_MODEL.md) distinguishes database capabilities from the user flows currently exposed in the app.
+- [Operations and testing](docs/OPERATIONS.md) contains the migration, release, fixture, and post-deploy checklists.
