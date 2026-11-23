@@ -1,16 +1,9 @@
 "use client";
+import { formatWholeInr as money } from "@/lib/utils/currency";
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type NetWorthChartPoint = { label: string; net_worth: number | string };
-
-function money(value: number | string) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(typeof value === "number" ? value : Number(value));
-}
 
 export function NetWorthChart({ data }: { data: NetWorthChartPoint[] }) {
   return (

@@ -79,6 +79,7 @@ export interface RecurringRule {
   account_id: DatabaseId;
   category_id: DatabaseId;
   amount: Money;
+  anchor_day: number;
   frequency: RecurringFrequency;
   next_due_date: DateString;
   is_active: boolean;
@@ -124,13 +125,14 @@ export interface AccountBalance {
   balance: Money;
 }
 
-export type AccountActivity = Pick<Transaction, "account_id" | "amount" | "direction" | "date" | "created_at">;
+export type AccountActivity = Pick<Transaction, "id" | "account_id" | "amount" | "direction" | "date" | "created_at">;
 export type CounterpartyStatementEntry = Pick<
   Transaction,
   "id" | "amount" | "direction" | "type" | "date" | "note" | "created_at"
 >;
 
 export interface TransactionListEntry {
+  status: TransactionStatus;
   transaction_id: DatabaseId;
   date: DateString;
   account_id: DatabaseId;
@@ -195,7 +197,7 @@ export interface UpcomingRecurringBill {
 
 export type ActiveRecurringRule = Pick<
   RecurringRule,
-  "id" | "name" | "account_id" | "category_id" | "amount" | "frequency" | "next_due_date" | "is_active"
+  "id" | "name" | "account_id" | "category_id" | "amount" | "frequency" | "next_due_date" | "is_active" | "anchor_day"
 >;
 export type ConfirmedRecurringTransaction = Pick<Transaction, "amount" | "date"> & { recurring_rule_id: DatabaseId };
 export interface RecurringOccurrence {

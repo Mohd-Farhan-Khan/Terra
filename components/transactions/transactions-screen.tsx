@@ -1,48 +1,21 @@
 "use client";
+import { displayDate } from "@/lib/utils/calendar";
+import { QueryError } from "@/components/ui/query-error";
+import { dateString as localDateString } from "@/lib/utils/calendar";
+import { formatInr as money } from "@/lib/utils/currency";
 
+import { useLocalDay } from "@/lib/hooks/use-local-day";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { fetchActiveAccounts, fetchActiveCategories, fetchTransactions } from "@/lib/queries/finance";
+import { fetchHistoricalAccounts, fetchHistoricalCategories, fetchTransactions } from "@/lib/queries/finance";
 import { queryKeys } from "@/lib/queries/keys";
-import type { ActiveCategory, NamedRecord, TransactionListEntry, TransactionSummary } from "@/lib/types/database";
+import type { ActiveCategory, NamedRecord, TransactionListEntry } from "@/lib/types/database";
 
 const pageSize = 12;
-
-function firstDayOfMonth() {
-  const date = new Date();
-  return localDateString(new Date(date.getFullYear(), date.getMonth(), 1));
-}
-
-function localDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function today() {
-  return localDateString(new Date());
-}
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
-function displayDate(date: string) {
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(
-    new Date(`${date}T00:00:00`),
-  );
-}
 
 function EntryGlyph({ type }: { type: TransactionListEntry["type"] }) {
   if (type === "income")
@@ -66,8 +39,11 @@ function EntryGlyph({ type }: { type: TransactionListEntry["type"] }) {
 
 export function TransactionsScreen() {
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [fromDate, setFromDate] = useState(firstDayOfMonth);
-  const [toDate, setToDate] = useState(today);
+  const day = useLocalDay() || localDateString(new Date());
+  const [startOverride, setFromDate] = useState<string | null>(null);
+  const fromDate = startOverride ?? day.slice(0, 7) + "-01";
+  const [endOverride, setToDate] = useState<string | null>(null);
+  const toDate = endOverride ?? day;
   const [accountId, setAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(0);
@@ -82,37 +58,30 @@ export function TransactionsScreen() {
 
   // These are the same keys used by transaction entry, so navigating between
   // the pages reuses the in-memory reference data rather than refetching it.
-  const accountsQuery = useQuery<NamedRecord[]>({ queryKey: queryKeys.activeAccounts, queryFn: fetchActiveAccounts });
+  const accountsQuery = useQuery<NamedRecord[]>({ queryKey: queryKeys.accounts, queryFn: fetchHistoricalAccounts });
   const categoriesQuery = useQuery<ActiveCategory[]>({
-    queryKey: queryKeys.activeCategories,
-    queryFn: fetchActiveCategories,
+    queryKey: queryKeys.categories,
+    queryFn: fetchHistoricalCategories,
   });
   const filters = useMemo(
     () => ({ fromDate, toDate, accountId, categoryId, page, pageSize }),
     [fromDate, toDate, accountId, categoryId, page],
   );
-  const transactionsQuery = useQuery<{
-    rows: TransactionListEntry[];
-    count: number;
-    summary: TransactionSummary | null;
-  }>({
+  const transactionsQuery = useQuery({
     enabled: !dateRangeError,
-    placeholderData: keepPreviousData,
     queryKey: queryKeys.transactions(filters),
-    queryFn: () =>
-      fetchTransactions(filters) as Promise<{
-        rows: TransactionListEntry[];
-        count: number;
-        summary: TransactionSummary | null;
-      }>,
+    queryFn: () => fetchTransactions(filters),
   });
   const rows = transactionsQuery.data?.rows ?? [];
   const count = transactionsQuery.data?.count ?? 0;
   const summary = transactionsQuery.data?.summary ?? null;
   const accounts = accountsQuery.data ?? [];
-  const categories = (categoriesQuery.data ?? []).filter((category) => category.kind === "expense");
-  const state = transactionsQuery.isPending ? "loading" : transactionsQuery.isError ? "error" : "ready";
+  const categories = categoriesQuery.data ?? [];
+  const state =
+    !dateRangeError && transactionsQuery.isPending ? "loading" : transactionsQuery.isError ? "error" : "ready";
 
+  if (page > 0 && transactionsQuery.isSuccess && page * pageSize >= count)
+    setPage(Math.max(0, Math.ceil(count / pageSize) - 1));
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
   const clearFilters = () => {
     setFromDate("");
@@ -146,7 +115,10 @@ export function TransactionsScreen() {
         </Link>
       </header>
 
-      <section className="overflow-hidden rounded-xl border border-terra-tan/75 bg-terra-paper">
+      <section
+        hidden={state === "error"}
+        className="overflow-hidden rounded-xl border border-terra-tan/75 bg-terra-paper"
+      >
         <button
           aria-expanded={filtersOpen}
           className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-7"
@@ -218,7 +190,20 @@ export function TransactionsScreen() {
         )}
       </section>
 
-      {summary && (
+      {(accountsQuery.isError || categoriesQuery.isError) && (
+        <p role="alert">
+          Filters could not load.{" "}
+          <button
+            onClick={() => {
+              void accountsQuery.refetch();
+              void categoriesQuery.refetch();
+            }}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {summary && !dateRangeError && (
         <div className="flex flex-wrap gap-x-6 gap-y-2 px-1 text-xs text-terra-gray">
           <span>
             <strong className="font-medium text-terra-ink">{summary.transaction_count}</strong> cleared entries
@@ -227,20 +212,26 @@ export function TransactionsScreen() {
             Income <strong className="font-medium text-terra-sage">{money(summary.income_amount)}</strong>
           </span>
           <span>
-            Outflow <strong className="font-medium text-terra-clay">{money(summary.outflow_amount)}</strong>
+            Spending after refunds{" "}
+            <strong className="font-medium text-terra-clay">{money(summary.outflow_amount)}</strong>
           </span>
           <span>
-            Net <strong className="font-medium text-terra-ink">{money(summary.net_amount)}</strong>
+            Net movement <strong className="font-medium text-terra-ink">{money(summary.net_amount)}</strong>
           </span>
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          The transaction ledger view is unavailable. Apply the latest Supabase migration, then refresh.
-        </div>
+        <QueryError
+          error={transactionsQuery.error}
+          message="The ledger could not be loaded."
+          retry={() => void transactionsQuery.refetch()}
+        />
       )}
 
-      <section className="overflow-hidden rounded-xl border border-terra-tan/75 bg-terra-paper">
+      <section
+        hidden={state === "error"}
+        className="overflow-hidden rounded-xl border border-terra-tan/75 bg-terra-paper"
+      >
         <div className="hidden overflow-x-auto lg:block">
           <table className="w-full min-w-[52rem] border-collapse text-left">
             <thead className="border-b border-terra-tan/75 bg-terra-paper-soft/50 text-sm text-terra-gray">
@@ -279,11 +270,13 @@ export function TransactionsScreen() {
                       </span>
                       {row.category_name ?? "—"}
                     </td>
-                    <td className="max-w-[17rem] truncate px-5 py-4 text-sm text-terra-gray">{row.note ?? "—"}</td>
+                    <td className="max-w-[17rem] truncate px-5 py-4 text-sm text-terra-gray">
+                      {row.note ?? "—"} {row.status === "pending" && <small>Pending</small>}
+                    </td>
                     <td
-                      className={`whitespace-nowrap px-7 py-4 text-right font-medium ${row.type === "income" ? "text-terra-sage-deep" : "text-terra-clay"}`}
+                      className={`whitespace-nowrap px-7 py-4 text-right font-medium ${row.direction === "credit" ? "text-terra-sage-deep" : "text-terra-clay"}`}
                     >
-                      {row.type === "income" ? "+" : "−"}
+                      {row.direction === "credit" ? "+" : "−"}
                       {money(row.amount)}
                     </td>
                   </tr>
@@ -316,17 +309,17 @@ export function TransactionsScreen() {
                       {row.note ?? row.category_name ?? "Transaction"}
                     </p>
                     <p className="mt-1 truncate text-xs text-terra-gray">
-                      {displayDate(row.date)} · {row.account_name}
+                      {displayDate(row.date)} · {row.account_name} {row.status === "pending" && "· Pending"}
                     </p>
                   </div>
                   <p
-                    className={`shrink-0 whitespace-nowrap text-sm font-medium ${row.type === "income" ? "text-terra-sage-deep" : "text-terra-clay"}`}
+                    className={`shrink-0 whitespace-nowrap text-sm font-medium ${row.direction === "credit" ? "text-terra-sage-deep" : "text-terra-clay"}`}
                   >
-                    {row.type === "income" ? "+" : "−"}
+                    {row.direction === "credit" ? "+" : "−"}
                     {money(row.amount)}
                   </p>
                 </div>
-                <p className="mt-2 truncate text-xs text-terra-gray">{row.category_name ?? "Transfer"}</p>
+                <p className="mt-2 truncate text-xs text-terra-gray">{row.category_name ?? "Split expense"}</p>
               </article>
             ))
           ) : (

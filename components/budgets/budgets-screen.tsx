@@ -1,5 +1,8 @@
 "use client";
+import { QueryError } from "@/components/ui/query-error";
+import { formatInr as money, numberValue } from "@/lib/utils/currency";
 
+import { useLocalDay } from "@/lib/hooks/use-local-day";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -13,19 +16,6 @@ import type { BudgetVsActualWithProgress, NamedRecord } from "@/lib/types/databa
 type BudgetRow = BudgetVsActualWithProgress;
 const emptyBudgetRows: BudgetRow[] = [];
 const emptyCategories: NamedRecord[] = [];
-
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
 
 function localMonth(date = new Date()) {
   const year = date.getFullYear();
@@ -80,7 +70,7 @@ function RolloverToggle({
 
 function BudgetProgress({ row }: { row: BudgetRow }) {
   const utilization = numberValue(row.utilization_percent);
-  const overBudget = utilization > 100;
+  const overBudget = numberValue(row.remaining_amount) < 0;
   return (
     <div className="flex min-w-[11.5rem] items-center gap-3">
       <span
@@ -89,9 +79,10 @@ function BudgetProgress({ row }: { row: BudgetRow }) {
         {row.utilization_percent === null ? "—" : `${Math.round(utilization)}%`}
       </span>
       <ProgressBar
+        accessibleLabel="Budget usage"
         className="flex-1"
         tone={overBudget ? "brick" : utilization >= 80 ? "clay" : "sage"}
-        value={numberValue(row.progress_percent)}
+        value={overBudget ? 100 : numberValue(row.progress_percent)}
       />
     </div>
   );
@@ -255,28 +246,40 @@ function BudgetTable({
 }
 
 export function BudgetsScreen() {
-  const [month, setMonth] = useState(localMonth);
+  const today = useLocalDay();
+  const [selectedMonth, setMonth] = useState<string | null>(null);
+  const month = selectedMonth ?? (today ? today.slice(0, 7) + "-01" : localMonth());
   const [mutationError, setMutationError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const budgetsQuery = useQuery<{ rows: BudgetRow[]; categories: NamedRecord[] }>({
+  const budgetsQuery = useQuery({
     queryKey: queryKeys.budgets(month),
-    queryFn: () => fetchBudgets(month) as Promise<{ rows: BudgetRow[]; categories: NamedRecord[] }>,
+    queryFn: () => fetchBudgets(month),
   });
   const rows = budgetsQuery.data?.rows ?? emptyBudgetRows;
   const categories = budgetsQuery.data?.categories ?? emptyCategories;
   const state = budgetsQuery.isPending ? "loading" : budgetsQuery.isError ? "error" : "ready";
   const rolloverMutation = useMutation({
-    mutationFn: async ({ categoryId, rolloverEnabled }: { categoryId: string; rolloverEnabled: boolean }) => {
+    mutationFn: async ({
+      categoryId,
+      rolloverEnabled,
+      month,
+    }: {
+      categoryId: string;
+      rolloverEnabled: boolean;
+      month: string;
+    }) => {
       const result = await createClient()
         .from("budgets")
         .update({ rollover_enabled: rolloverEnabled })
         .eq("category_id", categoryId)
-        .eq("month", month);
+        .eq("month", month)
+        .select("id")
+        .single();
       if (result.error) throw result.error;
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
+        queryClient.invalidateQueries({ queryKey: ["budgets"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
       ]);
     },
@@ -291,7 +294,7 @@ export function BudgetsScreen() {
   async function toggleRollover(row: BudgetRow, nextValue: boolean) {
     setMutationError(null);
     try {
-      await rolloverMutation.mutateAsync({ categoryId: row.category_id, rolloverEnabled: nextValue });
+      await rolloverMutation.mutateAsync({ categoryId: row.category_id, rolloverEnabled: nextValue, month: row.month });
     } catch (error) {
       setMutationError(errorMessage(error, "We couldn’t update this budget. Please try again."));
     }
@@ -309,7 +312,7 @@ export function BudgetsScreen() {
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-terra-tan bg-terra-paper p-1.5 sm:gap-3">
           <button
             className="rounded-md px-3 py-2 text-sm text-terra-gray transition-colors hover:bg-terra-paper-soft hover:text-terra-ink"
-            onClick={() => setMonth((current) => moveMonth(current, -1))}
+            onClick={() => setMonth(moveMonth(month, -1))}
             type="button"
           >
             <span aria-hidden className="mr-1.5">
@@ -322,7 +325,7 @@ export function BudgetsScreen() {
           </p>
           <button
             className="rounded-md px-3 py-2 text-sm text-terra-gray transition-colors hover:bg-terra-paper-soft hover:text-terra-ink"
-            onClick={() => setMonth((current) => moveMonth(current, 1))}
+            onClick={() => setMonth(moveMonth(month, 1))}
             type="button"
           >
             Next
@@ -339,9 +342,11 @@ export function BudgetsScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Budget data is unavailable. Refresh the page and try again.
-        </div>
+        <QueryError
+          error={budgetsQuery.error}
+          message="Budget data is unavailable."
+          retry={() => void budgetsQuery.refetch()}
+        />
       )}
       {mutationError && (
         <div
@@ -369,9 +374,7 @@ export function BudgetsScreen() {
         ) : (
           <div className="rounded-xl border border-dashed border-terra-tan bg-terra-paper px-5 py-12 text-center">
             <p className="font-terra-heading text-2xl text-terra-ink">No budgets for {displayMonth(month)}</p>
-            <p className="mt-2 text-sm text-terra-gray">
-              Create a category budget for this month to track planned and actual spending.
-            </p>
+            <p className="mt-2 text-sm text-terra-gray">Category budgets for this month will appear here.</p>
           </div>
         ))}
     </div>

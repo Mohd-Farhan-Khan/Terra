@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useSyncExternalStore, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import { returnPath } from "@/lib/utils/return-path";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup";
@@ -68,8 +69,13 @@ function EyeIcon({ open }: { open: boolean }) {
   );
 }
 
+const subscribeToLocation = () => () => {};
+function serviceUnavailable() {
+  return new URLSearchParams(window.location.search).get("service") === "unavailable";
+}
 export default function LoginPage() {
   const router = useRouter();
+  const unavailable = useSyncExternalStore(subscribeToLocation, serviceUnavailable, () => false);
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -121,7 +127,7 @@ export default function LoginPage() {
       }
 
       const requestedPath = new URLSearchParams(window.location.search).get("next");
-      router.replace(requestedPath?.startsWith("/") ? requestedPath : "/dashboard");
+      router.replace(returnPath(requestedPath));
       router.refresh();
     } catch {
       setError("We could not reach your account. Please check your connection and try again.");
@@ -223,6 +229,12 @@ export default function LoginPage() {
             </div>
           )}
 
+          {unavailable && (
+            <p role="status">The sign-in service could not be reached. Try again when the connection is available.</p>
+          )}
+          {(!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) && (
+            <p role="alert">Terra needs its Supabase URL and publishable key before you can sign in.</p>
+          )}
           {error && (
             <p
               className="rounded-md border border-terra-brick-line bg-terra-brick-wash px-4 py-3 text-sm text-terra-brick-deep"

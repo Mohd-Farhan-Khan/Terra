@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { assertClose } from "./finance-assertions.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -6,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const reportPath = resolve("supabase/tests/RLS_VERIFICATION.md");
+const reportDirectory = resolve("coverage/database");
 const testId = randomUUID().slice(0, 8);
 const testPassword = `Terra-r${randomUUID()}!`;
 const month = "2026-07-01";
@@ -14,6 +15,15 @@ const month = "2026-07-01";
 if (!supabaseUrl || !publishableKey) {
   throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must be set.");
 }
+
+const createdUsers = [];
+const localTarget = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(supabaseUrl).hostname);
+const admin =
+  localTarget && process.env.TERRA_LOCAL_ADMIN_KEY
+    ? createClient(supabaseUrl, process.env.TERRA_LOCAL_ADMIN_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+    : null;
 
 function client() {
   return createClient(supabaseUrl, publishableKey, {
@@ -31,12 +41,6 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-function assertClose(actual, expected, label) {
-  if (Math.abs(Number(actual) - expected) > 0.000001) {
-    fail(`${label}: expected ${expected}, received ${actual}`);
-  }
-}
-
 function assertNoError(result, label) {
   if (result.error) fail(`${label}: ${result.error.message}`);
   return result.data;
@@ -44,13 +48,22 @@ function assertNoError(result, label) {
 
 function assertNoRows(result, label) {
   const data = assertNoError(result, label);
-  if ((data ?? []).length !== 0) fail(`${label}: expected no rows, received ${data.length}`);
+  if (!Array.isArray(data) || data.length !== 0) fail(label + ": expected an empty array");
 }
 
 async function signUp(label) {
   const instance = client();
-  const email = `terra-${label}-${testId}@mailinator.com`;
-  const { data, error } = await instance.auth.signUp({ email, password: testPassword });
+  const email = `terra-${label}-${testId}@${admin ? "example.test" : "mailinator.com"}`;
+  if (admin) {
+    const created = assertNoError(
+      await admin.auth.admin.createUser({ email, password: testPassword, email_confirm: true }),
+      "create local fixture",
+    );
+    createdUsers.push(created.user.id);
+  }
+  const { data, error } = admin
+    ? await instance.auth.signInWithPassword({ email, password: testPassword })
+    : await instance.auth.signUp({ email, password: testPassword });
   if (error) fail(`create ${label} test user: ${error.message}`);
   if (!data.user || !data.session) {
     fail(`create ${label} test user: email confirmation is enabled, so no authenticated session was issued`);
@@ -216,7 +229,7 @@ async function seedOwner(owner) {
       category_id: foodCategory.id,
       amount: 25,
       frequency: "monthly",
-      next_due_date: "2026-10-01",
+      next_due_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
     },
     "seed recurring rule",
   );
@@ -287,7 +300,26 @@ async function verifyCalculations(owner, fixture) {
 }
 
 async function verifyRls(secondUser, owner, fixture) {
+  await insertOne(
+    owner.client,
+    "transactions",
+    {
+      user_id: owner.userId,
+      account_id: fixture.checking.id,
+      category_id: fixture.foodCategory.id,
+      type: "expense",
+      direction: "debit",
+      amount: 1,
+      date: month,
+      recurring_rule_id: fixture.recurringRule.id,
+    },
+    "seed recurring payment",
+  );
   const dataSources = [
+    ["account_recent_activity", "account_id", fixture.checking.id],
+    ["account_statement", "account_id", fixture.checking.id],
+    ["transaction_allocations", "transaction_id", fixture.expense.id],
+    ["recurring_paid_monthly", "user_id", owner.userId],
     ["accounts", "id", fixture.checking.id],
     ["categories", "id", fixture.foodCategory.id],
     ["transactions", "id", fixture.expense.id],
@@ -310,9 +342,23 @@ async function verifyRls(secondUser, owner, fixture) {
   ];
 
   for (const [source, column, value] of dataSources) {
+    const visible = assertNoError(
+      await owner.client.from(source).select(column).eq(column, value).limit(1),
+      "owner reads " + source,
+    );
+    assertEqual(visible.length, 1, "owner sentinel for " + source);
     assertNoRows(await secondUser.client.from(source).select("*").eq(column, value), `RLS select ${source}`);
   }
 
+  const defaults = assertNoError(
+    await secondUser.client.from("categories").select("id").is("user_id", null).limit(1),
+    "system category access",
+  );
+  assertEqual(defaults.length, 1, "system category available");
+  assertNoRows(
+    await secondUser.client.rpc("filtered_ledger", { p_account_id: fixture.checking.id }),
+    "isolated ledger RPC",
+  );
   const update = await secondUser.client
     .from("accounts")
     .update({ name: "RLS escape attempt" })
@@ -324,7 +370,7 @@ async function verifyRls(secondUser, owner, fixture) {
     .from("accounts")
     .insert({ user_id: owner.userId, name: "RLS forged account", type: "bank" })
     .select("id");
-  if (!forgedInsert.error) fail("RLS insert with another user's user_id: expected rejection");
+  assertEqual(forgedInsert.error?.code, "42501", "RLS mismatched owner rejection");
 
   const ownerAccount = assertNoError(
     await owner.client.from("accounts").select("name").eq("id", fixture.checking.id).single(),
@@ -339,31 +385,97 @@ async function verifyRls(secondUser, owner, fixture) {
     p_category_id: fixture.foodCategory.id,
   });
   const rows = assertNoError(summary, "RLS transaction_summary RPC");
-  for (const row of rows ?? []) {
+  assertEqual(rows?.length, 1, "summary row count");
+  for (const row of rows) {
+    assertEqual(row.transaction_count, 0, "summary entry count");
     assertClose(row.income_amount, 0, "RLS transaction_summary income");
     assertClose(row.outflow_amount, 0, "RLS transaction_summary outflow");
     assertClose(row.net_amount, 0, "RLS transaction_summary net");
   }
 }
 
-async function writeReport() {
-  const timestamp = new Date().toISOString();
-  const report = `# RLS verification\n\nVerified by \`npm run test:database\` on ${timestamp}. The command created two distinct authenticated test users and seeded sentinel records only for the first.\n\nThe second user received zero rows when querying every source backing data-bearing app pages:\n\n- Dashboard: dashboard summary, net-worth, daily trend, category spend, budgets, and upcoming recurring bills\n- Accounts, transactions, budgets, counterparties, goals, recurring items, and settings: their base tables and reporting views\n- Direct API: all tenant tables, reporting views, and \`transaction_summary\` RPC\n\nIt also verified that the second user could neither update the first user's account nor insert an account with the first user's \`user_id\`; the first user's sentinel account remained unchanged. System-owned categories are intentionally outside this assertion because the product deliberately exposes them to every authenticated user.\n\nResult: **verified** — first-user data was inaccessible to the second user through each page data source and direct API call tested.\n`;
-  await mkdir(resolve("supabase/tests"), { recursive: true });
-  await writeFile(reportPath, report);
+async function verifyConcurrentWrites(owner, fixture) {
+  const requestId = randomUUID();
+  const args = {
+    p_request_id: requestId,
+    p_entry: {
+      type: "expense",
+      account: fixture.checking.id,
+      category: fixture.foodCategory.id,
+      amount: 2,
+      date: month,
+    },
+  };
+  const bookings = await Promise.all([owner.client.rpc("post_entry", args), owner.client.rpc("post_entry", args)]);
+  const ids = bookings.map((row) => assertNoError(row, "concurrent booking"));
+  assertEqual(ids[0], ids[1], "both callers receive the same booking");
+  const occurrence = {
+    p_recurring_rule_id: fixture.recurringRule.id,
+    p_expected_next_due_date: fixture.recurringRule.next_due_date,
+    p_occurred_on: month,
+  };
+  const before = assertNoError(
+    await owner.client.from("transactions").select("id").eq("recurring_rule_id", fixture.recurringRule.id),
+    "read occurrences",
+  );
+  const confirmations = await Promise.all([
+    owner.client.rpc("confirm_recurring_occurrence", occurrence),
+    owner.client.rpc("confirm_recurring_occurrence", occurrence),
+  ]);
+  assertEqual(confirmations.filter((result) => !result.error).length, 1, "one confirmed occurrence");
+  assertEqual(confirmations.find((result) => result.error)?.error?.code, "40001", "stale confirmation rejected");
+  const after = assertNoError(
+    await owner.client.from("transactions").select("id").eq("recurring_rule_id", fixture.recurringRule.id),
+    "read confirmed occurrences",
+  );
+  assertEqual(after.length, before.length + 1, "exactly one new recurring entry");
 }
 
-async function main() {
+async function verify() {
   const owner = await signUp("owner");
-  const secondUser = await signUp("second-user");
+  const second = await signUp("second-user");
   const fixture = await seedOwner(owner);
   await verifyCalculations(owner, fixture);
-  await verifyRls(secondUser, owner, fixture);
-  await writeReport();
-  console.log("Database calculations and two-user RLS verification passed.");
+  await verifyRls(second, owner, fixture);
+  await verifyConcurrentWrites(owner, fixture);
 }
-
-main().catch((error) => {
-  console.error(`Database verification failed: ${error.message}`);
+async function cleanup() {
+  if (!admin) return;
+  for (const id of createdUsers) {
+    assertNoError(
+      await admin.from("transactions").delete().eq("user_id", id).not("linked_refund_of", "is", null),
+      "remove fixture refunds",
+    );
+    for (const table of [
+      "transactions",
+      "goals",
+      "budgets",
+      "counterparties",
+      "recurring_rules",
+      "categories",
+      "accounts",
+    ]) {
+      assertNoError(await admin.from(table).delete().eq("user_id", id), "remove fixture " + table);
+    }
+    assertNoError(await admin.auth.admin.deleteUser(id), "remove fixture user");
+  }
+}
+let status = "passed";
+try {
+  try {
+    await verify();
+  } finally {
+    await cleanup();
+  }
+  console.log("Database calculations and two-user isolation passed.");
+} catch (error) {
+  status = "failed";
+  console.error("Database verification failed:", error.message);
   process.exitCode = 1;
-});
+} finally {
+  await mkdir(reportDirectory, { recursive: true });
+  await writeFile(
+    resolve(reportDirectory, testId + ".json"),
+    JSON.stringify({ status, at: new Date().toISOString(), run: testId }) + "\n",
+  );
+}

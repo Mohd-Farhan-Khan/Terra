@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { QueryProvider } from "@/components/providers/query-provider";
 import "@/styles/globals.css";
 
-const headingFont = Fraunces({
+const headingFont = localFont({
+  src: "./fonts/fraunces-latin.woff2",
+  weight: "100 900",
   variable: "--font-fraunces",
-  subsets: ["latin"],
   display: "swap",
 });
 
-const bodyFont = Inter({
+const bodyFont = localFont({
+  src: "./fonts/inter-latin.woff2",
+  weight: "100 900",
   variable: "--font-inter",
-  subsets: ["latin"],
   display: "swap",
 });
 

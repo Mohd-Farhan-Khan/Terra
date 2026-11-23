@@ -9,6 +9,10 @@
 /coverage
 *.tsbuildinfo
 
+# local Supabase CLI state
+/supabase/.temp/
+/supabase/.branches/
+
 # local deployment tooling
 .vercel
 

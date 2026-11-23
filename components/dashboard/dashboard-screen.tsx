@@ -1,6 +1,10 @@
 "use client";
+import { nextMonth } from "@/lib/utils/calendar";
+import { QueryError } from "@/components/ui/query-error";
+import { dateString as localDateString } from "@/lib/utils/calendar";
+import { formatWholeInr as money, numberValue } from "@/lib/utils/currency";
 
-import { useMemo } from "react";
+import { useLocalDay } from "@/lib/hooks/use-local-day";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
@@ -45,34 +49,8 @@ const emptyDashboard: DashboardData = {
   categoryNames: [],
 };
 
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(
-    numberValue(value),
-  );
-}
-
 function percentage(value: number | string | null | undefined) {
   return value === null || value === undefined ? "—" : `${numberValue(value).toFixed(0)}%`;
-}
-
-function localDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function monthStart(date = new Date()) {
-  return localDateString(new Date(date.getFullYear(), date.getMonth(), 1));
-}
-
-function nextMonth(month: string) {
-  const date = new Date(`${month}T00:00:00`);
-  return localDateString(new Date(date.getFullYear(), date.getMonth() + 1, 1));
 }
 
 function displayMonth(month: string) {
@@ -129,10 +107,11 @@ function PanelTitle({ children, detail }: { children: React.ReactNode; detail?: 
 }
 
 export function DashboardScreen() {
-  const currentMonth = useMemo(() => monthStart(), []);
-  const dashboardQuery = useQuery<DashboardData>({
-    queryKey: queryKeys.dashboard(currentMonth),
-    queryFn: () => fetchDashboard(currentMonth, nextMonth(currentMonth)) as Promise<DashboardData>,
+  const today = useLocalDay() || localDateString();
+  const currentMonth = today.slice(0, 7) + "-01";
+  const dashboardQuery = useQuery({
+    queryKey: [...queryKeys.dashboard(currentMonth), today],
+    queryFn: () => fetchDashboard(currentMonth, nextMonth(currentMonth), today),
   });
   const data = dashboardQuery.data ?? emptyDashboard;
   const state = dashboardQuery.isPending ? "loading" : dashboardQuery.isError ? "error" : "ready";
@@ -170,9 +149,11 @@ export function DashboardScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Dashboard reports are unavailable. Apply the latest Supabase migrations, then refresh this page.
-        </div>
+        <QueryError
+          error={dashboardQuery.error}
+          message="Dashboard reports are unavailable."
+          retry={() => void dashboardQuery.refetch()}
+        />
       )}
 
       {state === "ready" && (
@@ -227,8 +208,7 @@ export function DashboardScreen() {
             <Panel>
               <p className="font-terra-heading text-2xl text-terra-ink">No dashboard data yet</p>
               <p className="mt-2 text-sm text-terra-gray">
-                Add transactions and budgets, or run the dashboard seed fixture for your account. The reports will
-                populate automatically from Supabase.
+                Create an account in Settings, then record your first transaction.
               </p>
             </Panel>
           )}
@@ -302,7 +282,7 @@ export function DashboardScreen() {
                         <span className="h-1.5 overflow-hidden rounded-full bg-terra-track">
                           <span
                             className="block h-full rounded-full bg-terra-clay"
-                            style={{ width: `${numberValue(category.share_percent)}%` }}
+                            style={{ width: `${Math.max(0, Math.min(100, numberValue(category.share_percent)))}%` }}
                           />
                         </span>
                         <span className="text-right text-xs text-terra-gray">
@@ -333,8 +313,10 @@ export function DashboardScreen() {
                         <div className="mt-2 flex items-center gap-3">
                           <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-terra-track">
                             <span
-                              className={`block h-full rounded-full ${numberValue(budget.utilization_percent) > 100 ? "bg-terra-brick" : "bg-terra-sage"}`}
-                              style={{ width: `${numberValue(budget.progress_percent)}%` }}
+                              className={`block h-full rounded-full ${numberValue(budget.remaining_amount) < 0 ? "bg-terra-brick" : "bg-terra-sage"}`}
+                              style={{
+                                width: `${numberValue(budget.remaining_amount) < 0 ? 100 : numberValue(budget.progress_percent)}%`,
+                              }}
                             />
                           </span>
                           <span className="w-8 text-right text-xs text-terra-gray">

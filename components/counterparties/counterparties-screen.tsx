@@ -1,4 +1,7 @@
 "use client";
+import { displayDate } from "@/lib/utils/calendar";
+import { QueryError } from "@/components/ui/query-error";
+import { formatInr as money, numberValue } from "@/lib/utils/currency";
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -7,37 +10,17 @@ import { SlideOverPanel } from "@/components/ui/slide-over-panel";
 import { fetchCounterparties, fetchCounterpartyStatement } from "@/lib/queries/finance";
 import { queryKeys } from "@/lib/queries/keys";
 import type {
-  AccountType,
   CounterpartyRelationship,
   CounterpartyStatementEntry,
   CounterpartyWithBalance,
 } from "@/lib/types/database";
 
 type Relationship = CounterpartyRelationship;
-type CounterpartyAccountType = Extract<AccountType, "receivable" | "payable">;
+type CounterpartyAccountType = "receivable" | "payable";
 type DisplayCounterparty = CounterpartyWithBalance & { account_type: CounterpartyAccountType };
 const emptyCounterparties: DisplayCounterparty[] = [];
 
 const relationshipOrder: Relationship[] = ["parent", "friend", "other"];
-
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
-
-function displayDate(date: string) {
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(
-    new Date(`${date}T00:00:00`),
-  );
-}
 
 function relationshipLabel(relationship: Relationship) {
   return { parent: "Parent", friend: "Friend", other: "Other" }[relationship];
@@ -59,19 +42,6 @@ function statementDescription(transaction: CounterpartyStatementEntry, accountTy
   if (transaction.type !== "transfer") return transaction.type === "income" ? "Credit" : "Expense";
   if (accountType === "receivable") return transaction.direction === "credit" ? "Loan given" : "Repayment received";
   return transaction.direction === "debit" ? "Borrowing received" : "Repayment made";
-}
-
-function buildStatement(transactions: CounterpartyStatementEntry[]) {
-  const chronological = [...transactions].sort((left, right) =>
-    `${left.date}-${left.created_at}`.localeCompare(`${right.date}-${right.created_at}`),
-  );
-  let runningBalance = 0;
-  return chronological
-    .map((transaction) => {
-      runningBalance += signedAmount(transaction);
-      return { ...transaction, runningBalance };
-    })
-    .reverse();
 }
 
 function Avatar({ name, relationship }: { name: string; relationship: Relationship }) {
@@ -119,18 +89,19 @@ function CounterpartyRow({
 export function CounterpartiesScreen() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<DisplayCounterparty | null>(null);
-  const counterpartiesQuery = useQuery<DisplayCounterparty[]>({
+  const counterpartiesQuery = useQuery({
     queryKey: queryKeys.counterparties,
-    queryFn: () => fetchCounterparties() as Promise<DisplayCounterparty[]>,
+    queryFn: () => fetchCounterparties(),
   });
   const counterparties = counterpartiesQuery.data ?? emptyCounterparties;
   const state = counterpartiesQuery.isPending ? "loading" : counterpartiesQuery.isError ? "error" : "ready";
-  const statementQuery = useQuery<CounterpartyStatementEntry[]>({
-    queryKey: queryKeys.counterpartyStatement(selected?.linked_account_id ?? ""),
-    queryFn: () => fetchCounterpartyStatement(selected!.linked_account_id) as Promise<CounterpartyStatementEntry[]>,
+  const [statementPage, setStatementPage] = useState(0);
+  const statementQuery = useQuery({
+    queryKey: [...queryKeys.counterpartyStatement(selected?.linked_account_id ?? ""), statementPage],
+    queryFn: () => fetchCounterpartyStatement(selected!.linked_account_id, statementPage),
     enabled: Boolean(selected),
   });
-  const statement = selected ? buildStatement(statementQuery.data ?? []) : [];
+  const statement = statementQuery.data?.rows ?? [];
   const statementState = !selected
     ? "idle"
     : statementQuery.isPending
@@ -146,6 +117,7 @@ export function CounterpartiesScreen() {
   );
 
   async function openStatement(counterparty: DisplayCounterparty) {
+    setStatementPage(0);
     setSelected(counterparty);
   }
 
@@ -166,9 +138,11 @@ export function CounterpartiesScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Counterparty balances are unavailable. Apply the latest Supabase migrations, then refresh.
-        </div>
+        <QueryError
+          error={counterpartiesQuery.error}
+          message="Counterparty balances are unavailable."
+          retry={() => void counterpartiesQuery.refetch()}
+        />
       )}
       {state === "ready" && (
         <>
@@ -263,9 +237,11 @@ export function CounterpartiesScreen() {
                 <p className="py-10 text-center text-sm text-terra-gray">Loading transaction history…</p>
               )}
               {statementState === "error" && (
-                <p className="mt-4 rounded-lg border border-terra-brick-line bg-terra-brick-wash px-4 py-3 text-sm text-terra-brick-deep">
-                  This statement could not be loaded.
-                </p>
+                <QueryError
+                  error={statementQuery.error}
+                  message="This statement could not be loaded."
+                  retry={() => void statementQuery.refetch()}
+                />
               )}
               {statementState === "ready" &&
                 (statement.length ? (
@@ -287,7 +263,7 @@ export function CounterpartiesScreen() {
                               {amount >= 0 ? "+" : "−"}
                               {money(Math.abs(amount))}
                             </p>
-                            <p className="mt-1 text-xs text-terra-gray">{money(transaction.runningBalance)}</p>
+                            <p className="mt-1 text-xs text-terra-gray">{money(transaction.running_balance)}</p>
                           </div>
                         </div>
                       );
@@ -296,6 +272,21 @@ export function CounterpartiesScreen() {
                 ) : (
                   <p className="py-10 text-center text-sm text-terra-gray">No completed transactions yet.</p>
                 ))}
+              {(statementPage > 0 || (statementQuery.data?.count ?? 0) > 25) && (
+                <div className="flex justify-between mt-4">
+                  <button type="button" disabled={statementPage === 0} onClick={() => setStatementPage((p) => p - 1)}>
+                    Previous
+                  </button>
+                  <span>Page {statementPage + 1}</span>
+                  <button
+                    type="button"
+                    disabled={(statementPage + 1) * 25 >= (statementQuery.data?.count ?? 0)}
+                    onClick={() => setStatementPage((p) => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}

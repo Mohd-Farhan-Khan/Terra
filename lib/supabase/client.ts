@@ -1,3 +1,4 @@
+import type { Database } from "@/lib/types/supabase";
 import { createBrowserClient } from "@supabase/ssr";
 
 export function createClient() {
@@ -8,5 +9,5 @@ export function createClient() {
     throw new Error("Supabase is not configured. Add the public URL and publishable key to .env.local.");
   }
 
-  return createBrowserClient(url, key);
+  return createBrowserClient<Database>(url, key);
 }

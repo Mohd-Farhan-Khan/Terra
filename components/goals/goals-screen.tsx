@@ -1,4 +1,7 @@
 "use client";
+import { displayDate } from "@/lib/utils/calendar";
+import { QueryError } from "@/components/ui/query-error";
+import { formatInr as money, numberValue } from "@/lib/utils/currency";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,30 +12,10 @@ import type { GoalWithBalance } from "@/lib/types/database";
 
 const emptyGoals: GoalWithBalance[] = [];
 
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
-
 function progressPercent(goal: GoalWithBalance) {
   const target = numberValue(goal.target_amount);
   if (target <= 0) return 0;
   return Math.max(0, Math.min(100, (100 * numberValue(goal.balance)) / target));
-}
-
-function displayDate(date: string | null) {
-  if (!date) return "No target date";
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(
-    new Date(`${date}T00:00:00`),
-  );
 }
 
 function GoalIcon({ name }: { name: string }) {
@@ -82,23 +65,23 @@ function GoalCard({ goal }: { goal: GoalWithBalance }) {
               <span className="font-medium text-terra-ink">{money(goal.balance)}</span> of {money(goal.target_amount)}
             </p>
           </div>
-          <ProgressBar className="mt-5" tone="clay" value={progress} />
+          <ProgressBar accessibleLabel={goal.name + " goal progress"} className="mt-5" tone="clay" value={progress} />
         </div>
       </div>
       <footer className="flex items-center gap-3 border-t border-terra-tan/60 px-6 py-4 text-sm text-terra-gray">
         <span aria-hidden className="text-lg">
           ▣
         </span>
-        <span>Target date: {displayDate(goal.target_date)}</span>
+        <span>Target date: {goal.target_date ? displayDate(goal.target_date) : "No target date"}</span>
       </footer>
     </article>
   );
 }
 
 export function GoalsScreen() {
-  const goalsQuery = useQuery<GoalWithBalance[]>({
+  const goalsQuery = useQuery({
     queryKey: queryKeys.goals,
-    queryFn: () => fetchGoals() as Promise<GoalWithBalance[]>,
+    queryFn: () => fetchGoals(),
   });
   const goals = goalsQuery.data ?? emptyGoals;
   const state = goalsQuery.isPending ? "loading" : goalsQuery.isError ? "error" : "ready";
@@ -117,9 +100,11 @@ export function GoalsScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Goal progress is unavailable. Apply the latest Supabase migrations, then refresh.
-        </div>
+        <QueryError
+          error={goalsQuery.error}
+          message="Goal progress is unavailable."
+          retry={() => void goalsQuery.refetch()}
+        />
       )}
       {state === "ready" &&
         (goals.length ? (
@@ -132,7 +117,7 @@ export function GoalsScreen() {
           <div className="rounded-xl border border-dashed border-terra-tan bg-terra-paper px-5 py-12 text-center">
             <p className="font-terra-heading text-2xl text-terra-ink">No goals yet</p>
             <p className="mt-2 text-sm text-terra-gray">
-              Create a goal with a linked account to track its current balance here.
+              Goals linked to an account appear here. Each goal shows that account’s full balance.
             </p>
           </div>
         ))}

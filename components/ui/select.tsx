@@ -26,6 +26,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       {label && <span className="text-sm font-medium text-terra-ink">{label}</span>}
       <span className="relative block">
         <select
+          aria-label={label}
           className={cn(
             "h-11 w-full appearance-none rounded-[8px] border border-terra-tan bg-terra-paper px-3.5 pr-10 text-sm text-terra-ink outline-none transition-colors focus:border-terra-clay focus:ring-2 focus:ring-terra-clay/15",
             className,

@@ -9,6 +9,8 @@ All monetary values are positive amounts. Direction determines the effect on an 
 | `credit`  | Adds to the account balance.        |
 | `debit`   | Subtracts from the account balance. |
 
+The ledger shows pending rows with their status. Its summary counts cleared entries, reports spending after refunds, and uses signed account movement for net. With the account filter set to All accounts, both transfer legs cancel out. When filtered to one account, its leg changes net movement. A category filter displays the matching portion of a split or linked refund.
+
 Only `completed` transactions contribute to account balances and reporting calculations. Reversed transactions are excluded from the ledger view and its summary; pending transactions are stored but do not contribute to balances.
 
 ## Calculation rules
@@ -29,8 +31,8 @@ Examples and assertions for these rules are in [`supabase/tests/finance_calculat
 | ---------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | Income                       | Add transaction → Income                         | Inserts an income credit with an income category.                                                          |
 | Ordinary expense             | Add transaction → Expense                        | Inserts an expense debit with one expense category.                                                        |
-| Split expense                | Add transaction → Expense → Add another category | Calls `create_expense_with_splits`; two or more positive splits must equal the total.                      |
-| Transfer                     | Add transaction → Transfer                       | Calls `create_transfer`; source receives a debit and destination receives a credit.                        |
+| Split expense                | Add transaction → Expense → Add another category | `post_entry` delegates to `create_expense_with_splits`; two or more positive splits must equal the total.  |
+| Transfer                     | Add transaction → Transfer                       | `post_entry` delegates to `create_transfer`; source receives a debit and destination receives a credit.    |
 | Recurring occurrence         | Recurring → Confirm                              | Calls `confirm_recurring_occurrence`; records the expense and advances the schedule.                       |
 | Account/category maintenance | Settings                                         | Creates, edits, archives, and restores accounts/categories. Archived records remain on historical entries. |
 
@@ -62,3 +64,10 @@ Use a disposable development/staging user. Record starting balances, create the 
 | EMI/subscription       | Funding account decreases; selected expense category increases. A confirmed recurring rule additionally advances its next due date.                    |
 
 This is a verification plan, not evidence of a completed manual run. Keep actual observed results with the deployment/test run that produced them.
+
+## Calendar dates and historical classifications
+
+- A monthly or yearly rule keeps its scheduled day. Short months use their final day; later months return to the anchor. A weekly rule contributes once per outstanding occurrence in the selected month.
+- A partial linked refund distributes whole paise in proportion to the original allocations. The largest remainders receive surplus paise, with the category ID breaking ties. A completed refund retains its allocation if the original expense is reversed. Refunded expenses must retain their expense type.
+- Archiving an account or category preserves posted records and historical filters. New postings, including recurring confirmations, require active references.
+- Completed future-dated entries contribute to the posted balance. Date filters on the ledger can show those entries. Goals sharing an account show its full balance. Savings reports use the current savings classification. These existing product rules remain available for a separate product decision.

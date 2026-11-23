@@ -1,6 +1,6 @@
 # Connecting Terra to Supabase
 
-This guide sets up a new Supabase project for Terra from scratch. You only need the browser to create and configure the Supabase project; the application setup itself happens from your terminal.
+For the existing Terra Finance project, the hosted schema was updated through `20261123093000` on 23 November 2026. Use the migration list to identify future pending versions. For a new project, follow the setup below. The [hosted verification record](supabase/tests/RLS_VERIFICATION.md) describes what was tested.
 
 ## 1. Create a Supabase project
 
@@ -24,7 +24,7 @@ These are the only credentials Terra needs:
 | `NEXT_PUBLIC_SUPABASE_URL`             | Project URL     |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key |
 
-The publishable key is intentionally visible in a browser app. It is safe to use only because the database policies restrict each signed-in user to their own records. Never use or expose the `service_role` key in this project.
+The publishable key is intentionally visible in a browser app. It is safe to use only because the database policies restrict each signed-in user to their own records. Use the public key in the application. The disposable local test harness accepts an admin key only for creating and removing fixture users.
 
 ## 3. Configure your local project
 
@@ -64,6 +64,8 @@ Migrations create Terra's tables, views, functions, constraints, and Row-Level S
 3. Review and apply the migrations in `supabase/migrations`:
 
    ```bash
+   npx supabase migration list
+   npx supabase db push --dry-run
    npx supabase db push
    ```
 
@@ -96,6 +98,7 @@ Run the local code checks:
 npm run lint
 npm run typecheck
 npm run format:check
+npm test
 npm run build
 ```
 
@@ -105,7 +108,7 @@ The following command creates two test users and verifies financial calculations
 npm run test:database
 ```
 
-Run it only against a dedicated development or staging Supabase project, because it creates test users and records. It requires email/password Auth sign-up to be available and below the project’s email rate limit. A successful run updates `supabase/tests/RLS_VERIFICATION.md` with a timestamped verified result; a blocked result is not evidence that RLS passed.
+Run it only against a dedicated development or staging Supabase project, because it creates test users and records. It requires email/password Auth sign-up to be available and below the project’s email rate limit. Each run records its outcome under `coverage/database/`. See the operations guide for the disposable local suite and fixture cleanup.
 
 ## 8. Add the connection to Vercel
 
@@ -121,14 +124,14 @@ Do not add a Supabase service-role key to Vercel for Terra. Database access from
 
 ## Common first-time problems
 
-| Problem                                       | What to check                                                                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| “Supabase is not configured”                  | Both variables exist in `.env.local`, their names match exactly, and the dev server was restarted.    |
-| Sign-up succeeds but the user cannot continue | Email confirmation may be enabled; confirm the email or disable it temporarily for local development. |
-| Database/table error in the app               | Run `npx supabase db push` and confirm every migration completed.                                     |
-| A user sees no data                           | This is normally RLS working. Make sure the records were created while signed in as that same user.   |
-| `test:database` cannot connect                | Verify the Project URL is current and that DNS/network access to your Supabase project is available.  |
-| `test:database` reports an email rate limit   | Wait for the Auth email quota to reset (or change the limit where the plan permits), then rerun once. |
+| Problem                                       | What to check                                                                                                                          |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| “Supabase is not configured”                  | Both variables exist in `.env.local`, their names match exactly, and the dev server was restarted.                                     |
+| Sign-up succeeds but the user cannot continue | Email confirmation may be enabled; confirm the email or disable it temporarily for local development.                                  |
+| Database/table error in the app               | Run `npx supabase db push` and confirm every migration completed.                                                                      |
+| A user sees no data                           | Check for a query error first. An empty successful result can be expected for a new account, a date filter, or another user’s records. |
+| `test:database` cannot connect                | Verify the Project URL is current and that DNS/network access to your Supabase project is available.                                   |
+| `test:database` reports an email rate limit   | Wait for the Auth email quota to reset (or change the limit where the plan permits), then rerun once.                                  |
 
 ## Further project documentation
 

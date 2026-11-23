@@ -1,0 +1,52 @@
+name: Terra checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint && npm run format:check && npm test
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - name: Verify a clean install
+        run: supabase start && npm run test:sql
+      - name: Verify an upgrade with existing user data
+        run: |
+          supabase db reset --local --version 20260730120000
+          export PGDATABASE=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          psql -X -v ON_ERROR_STOP=1 -c "insert into auth.users(id,email) values ('00000001-0000-0000-0000-000000000001','upgrade@example.test')"
+          sed '/-- REPLACE ME/s/00000000-0000-0000-0000-000000000000/00000001-0000-0000-0000-000000000001/' supabase/tests/seed_dashboard_test_data.sql | psql -X -v ON_ERROR_STOP=1
+          psql -XAt -v ON_ERROR_STOP=1 -f supabase/checks/ledger_preflight.sql > "$RUNNER_TEMP/terra-preflight"
+          test ! -s "$RUNNER_TEMP/terra-preflight"
+          supabase migration up --local
+          psql -X -v ON_ERROR_STOP=1 -f supabase/checks/verify_sample_upgrade.sql
+      - name: Load disposable stack settings
+        shell: bash
+        run: |
+          supabase status -o json | node -e '
+            const fs = require("node:fs");
+            const stack = JSON.parse(fs.readFileSync(0,"utf8"));
+            const vars = { NEXT_PUBLIC_SUPABASE_URL: stack.API_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: stack.ANON_KEY, TERRA_LOCAL_ADMIN_KEY: stack.SERVICE_ROLE_KEY };
+            for (const [key,value] of Object.entries(vars)) {
+              if (!value) throw new Error("Missing local setting " + key);
+              if (key === "TERRA_LOCAL_ADMIN_KEY") process.stdout.write("::add-mask::" + value + "\n");
+              fs.appendFileSync(process.env.GITHUB_ENV,key+"="+value+"\n");
+            }'
+      - run: npm run test:sql && npm run test:database && npm run test:schema
+      - run: npm run typecheck && npm run build
+      - run: npx --no-install playwright-core install --with-deps chromium
+      - name: Exercise the production app
+        run: |
+          npm run start -- -H 127.0.0.1 > /tmp/terra-server.log 2>&1 &
+          trap 'kill $! || true' EXIT
+          curl --fail --silent --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:3000/login > /dev/null
+          npm run test:browser

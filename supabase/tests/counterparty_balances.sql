@@ -57,10 +57,10 @@ order by c.name;
 
 do $$
 begin
-  if (select balance from public.account_balances where account_id = (select receivable_id from counterparty_test_context)) <> 60 then
+  if (select balance from public.account_balances where account_id = (select receivable_id from counterparty_test_context)) is distinct from 60 then
     raise exception 'Expected Mom receivable balance to be 60 after repayment';
   end if;
-  if (select balance from public.account_balances where account_id = (select payable_id from counterparty_test_context)) <> -30 then
+  if (select balance from public.account_balances where account_id = (select payable_id from counterparty_test_context)) is distinct from -30 then
     raise exception 'Expected Friend payable balance to be -30 after repayment';
   end if;
 end;

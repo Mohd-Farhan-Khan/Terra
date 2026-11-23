@@ -90,6 +90,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppNavigation() {
   const [open, setOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
   const mobileNavRef = useRef<HTMLElement>(null);
 
@@ -129,8 +130,12 @@ export function AppNavigation() {
   async function signOut() {
     setIsSigningOut(true);
     try {
-      await createClient().auth.signOut();
+      setLogoutError("");
+      const { error } = await createClient().auth.signOut();
+      if (error) throw error;
       window.location.assign("/login");
+    } catch {
+      setLogoutError("Sign-out could not be confirmed. Check your connection and try again.");
     } finally {
       setIsSigningOut(false);
     }
@@ -138,6 +143,11 @@ export function AppNavigation() {
 
   return (
     <>
+      {logoutError && (
+        <p role="alert" className="fixed top-2 right-2 z-[60] rounded bg-terra-paper p-3 text-terra-brick">
+          {logoutError}
+        </p>
+      )}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-terra-tan bg-terra-paper px-5 py-7 lg:flex lg:flex-col">
         <Brand />
         <div className="mt-8 flex-1">
@@ -187,7 +197,7 @@ export function AppNavigation() {
           <aside
             aria-label="Mobile navigation"
             className="relative h-full w-[min(19rem,86vw)] overflow-y-auto border-r border-terra-tan bg-terra-paper px-5 py-7 shadow-terra-panel"
-            onKeyDown={trapMobileNavFocus}
+            onKeyDown={(event) => (event.key === "Escape" ? setOpen(false) : trapMobileNavFocus(event))}
             ref={mobileNavRef}
           >
             <div className="flex items-center justify-between">

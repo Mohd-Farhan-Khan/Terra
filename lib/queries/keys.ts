@@ -32,6 +32,7 @@ export async function invalidateTransactionData(queryClient: QueryClient) {
 
 export async function invalidateReferenceData(queryClient: QueryClient) {
   await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["transactions"] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
     queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
     queryClient.invalidateQueries({ queryKey: ["dashboard"] }),

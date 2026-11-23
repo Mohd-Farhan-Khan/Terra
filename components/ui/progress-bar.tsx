@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils/cn";
 export interface ProgressBarProps {
   className?: string;
   label?: string;
+  accessibleLabel?: string;
   tone?: "clay" | "sage" | "brick";
   value: number;
 }
@@ -13,7 +14,7 @@ const toneClasses = {
   brick: "bg-terra-brick",
 };
 
-export function ProgressBar({ className, label, tone = "clay", value }: ProgressBarProps) {
+export function ProgressBar({ className, label, accessibleLabel, tone = "clay", value }: ProgressBarProps) {
   const safeValue = Math.max(0, Math.min(100, value));
 
   return (
@@ -25,7 +26,7 @@ export function ProgressBar({ className, label, tone = "clay", value }: Progress
         </div>
       )}
       <div
-        aria-label={label}
+        aria-label={accessibleLabel ?? label}
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={safeValue}

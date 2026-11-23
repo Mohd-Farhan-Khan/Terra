@@ -82,10 +82,10 @@ order by account_name;
 
 do $$
 begin
-  if (select balance from public.account_balances where account_name = 'Entry test checking') <> 350 then
+  if (select balance from public.account_balances where account_id = (select checking_id from entry_test_context)) is distinct from 350 then
     raise exception 'Expected checking balance 350';
   end if;
-  if (select balance from public.account_balances where account_name = 'Entry test savings') <> 150 then
+  if (select balance from public.account_balances where account_id = (select savings_id from entry_test_context)) is distinct from 150 then
     raise exception 'Expected savings balance 150';
   end if;
 end;

@@ -2,6 +2,8 @@
 -- It creates all data inside a transaction, prints the calculated rows, checks
 -- the expected values, and finally rolls everything back.
 
+begin;
+
 create temp table finance_test_context (
   user_id uuid,
   checking_id uuid,
@@ -11,8 +13,6 @@ create temp table finance_test_context (
   payable_id uuid,
   food_category_id uuid
 );
-
-begin;
 
 do $$
 declare
@@ -149,8 +149,8 @@ select * from public.create_transfer(
 -- Force all deferred transaction and transfer-pair validations now.
 set constraints all immediate;
 
--- Expected account balances: checking 590, savings 100, investment 100,
--- receivable 80, payable -20. Net worth is 790 because receivable/payable are
+-- Expected account balances: checking -140, savings 100, investment 100,
+-- receivable 80, payable -20. Net worth is 60 because receivable/payable are
 -- excluded. The July savings rate is 200 / 1,000 = 0.20.
 select account_name, account_type, balance
 from public.account_balances
@@ -184,19 +184,19 @@ do $$
 declare
   v_user_id uuid := (select user_id from finance_test_context);
 begin
-  if (select balance from public.account_balances where user_id = v_user_id and account_name = 'Test checking') <> 590 then
-    raise exception 'Expected checking balance 590';
+  if (select balance from public.account_balances where user_id = v_user_id and account_name = 'Test checking') is distinct from -140 then
+    raise exception 'Expected checking balance -140';
   end if;
-  if (select net_worth from public.net_worth where user_id = v_user_id) <> 790 then
-    raise exception 'Expected net worth 790';
+  if (select net_worth from public.net_worth where user_id = v_user_id) is distinct from 60 then
+    raise exception 'Expected net worth 60';
   end if;
-  if (select actual_spend from public.category_monthly_spend where user_id = v_user_id and month = '2026-07-01') <> 150 then
+  if (select actual_spend from public.category_monthly_spend where user_id = v_user_id and month = '2026-07-01') is distinct from 150 then
     raise exception 'Expected July food spend 150';
   end if;
-  if (select savings_rate from public.savings_rate_monthly where user_id = v_user_id and month = '2026-07-01') <> 0.2 then
+  if (select savings_rate from public.savings_rate_monthly where user_id = v_user_id and month = '2026-07-01') is distinct from 0.2 then
     raise exception 'Expected July savings rate 0.2';
   end if;
-  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') <> 20 then
+  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') is distinct from 20 then
     raise exception 'Expected September remaining budget 20';
   end if;
 end;
@@ -214,10 +214,10 @@ do $$
 declare
   v_user_id uuid := (select user_id from finance_test_context);
 begin
-  if (select carry_in from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') <> 0 then
+  if (select carry_in from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') is distinct from 0 then
     raise exception 'Expected September carry-in to be 0 when August rollover is disabled';
   end if;
-  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') <> -50 then
+  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') is distinct from -50 then
     raise exception 'Expected September remaining budget -50 when August rollover is disabled';
   end if;
 end;
@@ -233,10 +233,10 @@ do $$
 declare
   v_user_id uuid := (select user_id from finance_test_context);
 begin
-  if (select carry_in from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') <> 70 then
+  if (select carry_in from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') is distinct from 70 then
     raise exception 'Expected September carry-in to restore to 70 when August rollover is re-enabled';
   end if;
-  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') <> 20 then
+  if (select remaining_amount from public.budget_vs_actual where user_id = v_user_id and month = '2026-09-01') is distinct from 20 then
     raise exception 'Expected September remaining budget to restore to 20 when August rollover is re-enabled';
   end if;
 end;
@@ -274,7 +274,7 @@ begin
   ) then
     raise exception 'Expected confirmation to create a completed recurring expense';
   end if;
-  if (select next_due_date from public.recurring_rules where id = v_rule_id) <> '2026-07-22' then
+  if (select next_due_date from public.recurring_rules where id = v_rule_id) is distinct from '2026-07-22' then
     raise exception 'Expected weekly recurring rule to advance to July 22';
   end if;
 end;

@@ -1,4 +1,6 @@
 "use client";
+import { useSearchParams } from "next/navigation";
+import { QueryError } from "@/components/ui/query-error";
 
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
@@ -35,7 +37,15 @@ function owned(category: SettingsCategory) {
 }
 
 export function SettingsScreen() {
-  const [tab, setTab] = useState("categories");
+  const params = useSearchParams();
+  const requestedTab = params.get("tab");
+  const tab = requestedTab === "accounts" || requestedTab === "profile" ? requestedTab : "categories";
+
+  function setTab(value: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", value);
+    window.history.replaceState(null, "", url);
+  }
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [modal, setModal] = useState<ModalState>(null);
@@ -44,19 +54,7 @@ export function SettingsScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const settingsQuery = useQuery<{
-    user: { id: string; email?: string | null };
-    categories: SettingsCategory[];
-    accounts: SettingsAccount[];
-  }>({
-    queryKey: queryKeys.settings,
-    queryFn: () =>
-      fetchSettings() as Promise<{
-        user: { id: string; email?: string | null };
-        categories: SettingsCategory[];
-        accounts: SettingsAccount[];
-      }>,
-  });
+  const settingsQuery = useQuery({ queryKey: queryKeys.settings, queryFn: fetchSettings });
   const categories = settingsQuery.data?.categories ?? emptyCategories;
   const accounts = settingsQuery.data?.accounts ?? emptyAccounts;
   const userId = settingsQuery.data?.user.id ?? "";
@@ -110,7 +108,7 @@ export function SettingsScreen() {
       const draft = modal.draft;
       const values = { name: draft.name.trim(), parent_category_id: draft.parentCategoryId || null };
       const result = draft.id
-        ? await client.from("categories").update(values).eq("id", draft.id)
+        ? await client.from("categories").update(values).eq("id", draft.id).select("id").single()
         : await client.from("categories").insert({ ...values, user_id: userId, kind: draft.kind });
       if (result.error) throw result.error;
       setModal(null);
@@ -139,7 +137,7 @@ export function SettingsScreen() {
         is_savings: (draft.type === "bank" || draft.type === "cash") && draft.isSavings,
       };
       const result = draft.id
-        ? await client.from("accounts").update(values).eq("id", draft.id)
+        ? await client.from("accounts").update(values).eq("id", draft.id).select("id").single()
         : await client.from("accounts").insert({ ...values, user_id: userId, type: draft.type });
       if (result.error) throw result.error;
       setModal(null);
@@ -158,7 +156,9 @@ export function SettingsScreen() {
       const { error: archiveError } = await createClient()
         .from("categories")
         .update({ is_archived: !category.is_archived })
-        .eq("id", category.id);
+        .eq("id", category.id)
+        .select("id")
+        .single();
       if (archiveError) throw archiveError;
       await refreshAfterMutation(
         category.is_archived ? "Category restored." : "Category archived. Historical transactions are unchanged.",
@@ -175,7 +175,9 @@ export function SettingsScreen() {
       const { error: archiveError } = await createClient()
         .from("accounts")
         .update({ is_archived: !account.is_archived })
-        .eq("id", account.id);
+        .eq("id", account.id)
+        .select("id")
+        .single();
       if (archiveError) throw archiveError;
       await refreshAfterMutation(
         account.is_archived ? "Account restored." : "Account archived. Historical transactions are unchanged.",
@@ -233,6 +235,9 @@ export function SettingsScreen() {
           <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 1.25}rem` }}>
             <span className="text-terra-gray">{depth ? "↳" : "□"}</span>
             <span className="text-sm font-medium text-terra-ink">{parent.name}</span>
+            <small className="text-terra-gray lg:hidden">
+              {categoryKindLabel(parent.kind)} · {parent.is_archived ? "Archived" : "Active"}
+            </small>
             {!owned(parent) && (
               <span className="rounded-full bg-terra-paper-soft px-2 py-0.5 text-[.62rem] font-medium uppercase tracking-[.08em] text-terra-gray">
                 System
@@ -322,9 +327,11 @@ export function SettingsScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Settings are unavailable. Apply the latest Supabase migrations, then refresh.
-        </div>
+        <QueryError
+          error={settingsQuery.error}
+          message="Settings are unavailable."
+          retry={() => void settingsQuery.refetch()}
+        />
       )}
       {notice && (
         <p
@@ -334,7 +341,7 @@ export function SettingsScreen() {
           {notice}
         </p>
       )}
-      {error && (
+      {error && !modal && (
         <p
           role="alert"
           className="rounded-lg border border-terra-brick-line bg-terra-brick-wash px-4 py-3 text-sm text-terra-brick-deep"
@@ -438,6 +445,9 @@ export function SettingsScreen() {
                     <tr className="settings-row border-b border-terra-tan/55 last:border-0" key={account.id}>
                       <td className="px-5 py-3.5 text-sm font-medium text-terra-ink sm:px-6">
                         {account.name}
+                        <small className="block text-terra-gray lg:hidden">
+                          {typeLabel(account.type)} · {account.is_archived ? "Archived" : "Active"}
+                        </small>
                         {account.is_savings && (
                           <span className="ml-2 rounded-full bg-terra-sage-wash px-2 py-0.5 text-[.62rem] font-medium uppercase tracking-[.08em] text-terra-sage-deep">
                             Savings
@@ -547,6 +557,11 @@ export function SettingsScreen() {
               : "Settings"
         }
       >
+        {modal && error && (
+          <p role="alert" className="text-terra-brick">
+            {error}
+          </p>
+        )}
         {modal?.kind === "category" && (
           <form className="space-y-5" onSubmit={saveCategory}>
             <label className="grid gap-2">

@@ -1,6 +1,8 @@
 "use client";
+import { QueryError } from "@/components/ui/query-error";
+import { formatInr as money, numberValue } from "@/lib/utils/currency";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
@@ -13,19 +15,6 @@ type SparkPoint = { value: number };
 const ownedAccountTypes: AccountType[] = ["bank", "cash", "investment"];
 const emptyAccounts: AccountBalance[] = [];
 const emptyTransactions: AccountActivity[] = [];
-
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
 
 function typeLabel(type: AccountType) {
   return {
@@ -81,9 +70,7 @@ function AccountIcon({ type }: { type: AccountType }) {
 
 function buildSparkline(balance: number | string, transactions: AccountActivity[]) {
   const finalBalance = numberValue(balance);
-  const ordered = [...transactions].sort((left, right) =>
-    `${left.date}-${left.created_at}`.localeCompare(`${right.date}-${right.created_at}`),
-  );
+  const ordered = transactions; // The query orders each account by date, timestamp, then ID.
   const openingBalance = ordered.reduce(
     (total, transaction) =>
       total - (transaction.direction === "credit" ? numberValue(transaction.amount) : -numberValue(transaction.amount)),
@@ -105,19 +92,20 @@ function buildSparkline(balance: number | string, transactions: AccountActivity[
 }
 
 function Sparkline({ points }: { points: SparkPoint[] }) {
+  const gradientId = useId();
   return (
     <div aria-label="Recent account activity" className="h-20 w-full" role="img">
       <ResponsiveContainer height="100%" width="100%">
         <AreaChart data={points} margin={{ top: 5, right: 1, bottom: 2, left: 1 }}>
           <defs>
-            <linearGradient id="account-sparkline" x1="0" x2="0" y1="0" y2="1">
+            <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#c1673b" stopOpacity={0.18} />
               <stop offset="100%" stopColor="#c1673b" stopOpacity={0} />
             </linearGradient>
           </defs>
           <Area
             dataKey="value"
-            fill="url(#account-sparkline)"
+            fill={"url(#" + gradientId + ")"}
             isAnimationActive={false}
             stroke="#c1673b"
             strokeWidth={2.15}
@@ -201,9 +189,9 @@ function AccountGroup({
 }
 
 export function AccountsScreen() {
-  const overviewQuery = useQuery<{ accounts: AccountBalance[]; transactions: AccountActivity[] }>({
+  const overviewQuery = useQuery({
     queryKey: queryKeys.accountOverview,
-    queryFn: () => fetchAccountOverview() as Promise<{ accounts: AccountBalance[]; transactions: AccountActivity[] }>,
+    queryFn: () => fetchAccountOverview(),
   });
   const accounts = overviewQuery.data?.accounts ?? emptyAccounts;
   const transactions = overviewQuery.data?.transactions ?? emptyTransactions;
@@ -248,9 +236,11 @@ export function AccountsScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Account balances are unavailable. Apply the latest Supabase migrations, then refresh this page.
-        </div>
+        <QueryError
+          error={overviewQuery.error}
+          message="Account balances are unavailable."
+          retry={() => void overviewQuery.refetch()}
+        />
       )}
       {state === "ready" && (
         <>

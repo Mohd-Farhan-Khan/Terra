@@ -1,3 +1,5 @@
+"use client";
+import { useLocalDay } from "@/lib/hooks/use-local-day";
 import type { ReactNode } from "react";
 
 import { AppNavigation } from "@/components/layout/app-navigation";
@@ -15,6 +17,13 @@ export function AppShell({
   title: string;
   showHeader?: boolean;
 }) {
+  const day = useLocalDay();
+  if (!day)
+    return (
+      <main aria-busy="true" className="p-6">
+        Loading Terra…
+      </main>
+    );
   return (
     <div className="min-h-screen bg-terra-cream lg:pl-64">
       <AppNavigation />

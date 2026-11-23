@@ -1,49 +1,48 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { returnPath } from "@/lib/utils/return-path";
 
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const isLogin = request.nextUrl.pathname === "/login";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) {
+    return isLogin ? NextResponse.next() : NextResponse.redirect(new URL("/login", request.url));
+  }
 
-  // Keep the app usable during local setup, while still protecting routes once
-  // the configured Supabase project is available.
-  if (!url || !key) return response;
-
-  const supabase = createServerClient(url, key, {
+  let response = NextResponse.next({ request });
+  const authHeaders = new Headers();
+  const client = createServerClient(url, key, {
     cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      getAll: () => request.cookies.getAll(),
+      setAll(cookies, headers) {
+        cookies.forEach(({ name, value }) => request.cookies.set(name, value));
+        const updated = NextResponse.next({ request });
+        response.cookies.getAll().forEach((cookie) => updated.cookies.set(cookie));
+        cookies.forEach(({ name, value, options }) => updated.cookies.set(name, value, options));
+        Object.entries(headers ?? {}).forEach(([name, value]) => authHeaders.set(name, value));
+        response = updated;
       },
     },
   });
-
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-
-  const isLoginPage = request.nextUrl.pathname === "/login";
-
-  if (!user && !isLoginPage) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
-    return NextResponse.redirect(loginUrl);
+    error,
+  } = await client.auth.getUser();
+  let destination: URL | undefined;
+  if (!user && !isLogin) {
+    destination = new URL("/login", request.url);
+    destination.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+    if (error && error.name === "AuthRetryableFetchError") destination.searchParams.set("service", "unavailable");
+  } else if (user && isLogin) {
+    destination = new URL(returnPath(request.nextUrl.searchParams.get("next")), request.url);
   }
-
-  if (user && isLoginPage) {
-    const destination = request.nextUrl.searchParams.get("next");
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = destination?.startsWith("/") ? destination : "/dashboard";
-    dashboardUrl.search = "";
-    return NextResponse.redirect(dashboardUrl);
+  if (destination) {
+    const redirect = NextResponse.redirect(destination);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    response = redirect;
   }
-
+  authHeaders.forEach((value, name) => response.headers.set(name, value));
   return response;
 }
 

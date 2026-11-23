@@ -1,58 +1,23 @@
 "use client";
+import { displayDate, nextMonth } from "@/lib/utils/calendar";
+import { QueryError } from "@/components/ui/query-error";
+import { dateString as localDateString } from "@/lib/utils/calendar";
+import { formatInr as money, numberValue } from "@/lib/utils/currency";
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useLocalDay } from "@/lib/hooks/use-local-day";
+import { occurrencesInPeriod } from "@/lib/utils/calendar";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { fetchRecurring } from "@/lib/queries/finance";
 import { invalidateTransactionData, queryKeys } from "@/lib/queries/keys";
 import { errorMessage } from "@/lib/utils/error-message";
-import type {
-  ActiveRecurringRule,
-  ConfirmedRecurringTransaction,
-  NamedRecord,
-  RecurringOccurrence,
-} from "@/lib/types/database";
+import type { ActiveRecurringRule, NamedRecord } from "@/lib/types/database";
 
 const emptyRules: ActiveRecurringRule[] = [];
 const emptyCategories: NamedRecord[] = [];
-const emptyConfirmedTransactions: ConfirmedRecurringTransaction[] = [];
-
-function numberValue(value: number | string | null | undefined) {
-  return typeof value === "number" ? value : Number(value ?? 0);
-}
-
-function money(value: number | string | null | undefined) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
-
-function localDateString(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function monthStart(date = new Date()) {
-  return localDateString(new Date(date.getFullYear(), date.getMonth(), 1));
-}
-
-function nextMonth(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  return localDateString(new Date(year, monthNumber, 1));
-}
-
-function displayDate(date: string) {
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(
-    new Date(`${date}T00:00:00`),
-  );
-}
 
 function frequencyLabel(frequency: ActiveRecurringRule["frequency"]) {
   return frequency.charAt(0).toUpperCase() + frequency.slice(1);
@@ -116,37 +81,27 @@ function Metric({
 }
 
 export function RecurringScreen() {
-  const today = useMemo(() => localDateString(), []);
-  const currentMonth = useMemo(() => monthStart(), []);
+  const today = useLocalDay() || localDateString();
+  const currentMonth = today.slice(0, 7) + "-01";
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const recurringQuery = useQuery<{
-    rules: ActiveRecurringRule[];
-    categories: NamedRecord[];
-    confirmedTransactions: ConfirmedRecurringTransaction[];
-  }>({
+  const recurringQuery = useQuery({
     queryKey: queryKeys.recurring(currentMonth),
-    queryFn: () =>
-      fetchRecurring(currentMonth, nextMonth(currentMonth)) as Promise<{
-        rules: ActiveRecurringRule[];
-        categories: NamedRecord[];
-        confirmedTransactions: ConfirmedRecurringTransaction[];
-      }>,
+    queryFn: () => fetchRecurring(currentMonth),
   });
   const rules = recurringQuery.data?.rules ?? emptyRules;
   const categories = recurringQuery.data?.categories ?? emptyCategories;
-  const confirmedTransactions = recurringQuery.data?.confirmedTransactions ?? emptyConfirmedTransactions;
   const state = recurringQuery.isPending ? "loading" : recurringQuery.isError ? "error" : "ready";
   const confirmationMutation = useMutation({
     mutationFn: async (rule: ActiveRecurringRule) => {
       const result = await createClient().rpc("confirm_recurring_occurrence", {
         p_recurring_rule_id: rule.id,
         p_expected_next_due_date: rule.next_due_date,
-        p_occurred_on: today,
+        p_occurred_on: localDateString(),
       });
       if (result.error) throw result.error;
-      return { rule, occurrence: (result.data?.[0] ?? null) as RecurringOccurrence | null };
+      return { rule, occurrence: result.data?.[0] ?? null };
     },
     onSuccess: async ({ rule, occurrence }) => {
       await invalidateTransactionData(queryClient);
@@ -158,13 +113,21 @@ export function RecurringScreen() {
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
-  const dueSoonRules = rules.filter((rule) => daysFromToday(rule.next_due_date, today) <= 7);
-  const dueThisMonth = rules.filter(
-    (rule) => rule.next_due_date >= currentMonth && rule.next_due_date < nextMonth(currentMonth),
+  const dueSoonRules = rules.filter(
+    (rule) => rule.next_due_date >= today && daysFromToday(rule.next_due_date, today) <= 7,
   );
-  const paidThisMonth = confirmedTransactions.reduce(
-    (total, transaction) => total + numberValue(transaction.amount),
-    0,
+  const dueThisMonth = rules.reduce(
+    (total, rule) => {
+      const count = occurrencesInPeriod(
+        rule.next_due_date,
+        rule.frequency,
+        rule.anchor_day,
+        currentMonth,
+        nextMonth(currentMonth),
+      );
+      return { count: total.count + count, amount: total.amount + count * numberValue(rule.amount) };
+    },
+    { count: 0, amount: 0 },
   );
 
   async function confirmOccurrence(rule: ActiveRecurringRule) {
@@ -201,9 +164,11 @@ export function RecurringScreen() {
         </div>
       )}
       {state === "error" && (
-        <div className="rounded-xl border border-terra-brick-line bg-terra-brick-wash px-5 py-4 text-sm text-terra-brick-deep">
-          Recurring items are unavailable. Refresh the page and try again.
-        </div>
+        <QueryError
+          error={recurringQuery.error}
+          message="Recurring items are unavailable."
+          retry={() => void recurringQuery.refetch()}
+        />
       )}
       {mutationError && (
         <div
@@ -236,20 +201,20 @@ export function RecurringScreen() {
               value={money(dueSoonRules.reduce((total, rule) => total + numberValue(rule.amount), 0))}
             />
             <Metric
-              detail={`${dueThisMonth.length} scheduled`}
+              detail={`${dueThisMonth.count} scheduled`}
               label="Due this month"
-              value={money(dueThisMonth.reduce((total, rule) => total + numberValue(rule.amount), 0))}
+              value={money(dueThisMonth.amount)}
             />
             <Metric
-              detail={`${confirmedTransactions.length} confirmed`}
+              detail={`${recurringQuery.data?.paidCount ?? 0} confirmed`}
               label="Paid this month"
-              value={money(paidThisMonth)}
+              value={money(recurringQuery.data?.paidAmount)}
             />
           </div>
           {!rules.length ? (
             <div className="rounded-xl border border-dashed border-terra-tan bg-terra-paper px-5 py-12 text-center">
               <p className="font-terra-heading text-2xl text-terra-ink">No active recurring items</p>
-              <p className="mt-2 text-sm text-terra-gray">Add a recurring rule to track its schedule here.</p>
+              <p className="mt-2 text-sm text-terra-gray">Active recurring schedules will appear here.</p>
             </div>
           ) : (
             <section className="overflow-hidden rounded-xl border border-terra-tan/75 bg-terra-paper">
@@ -308,7 +273,9 @@ export function RecurringScreen() {
                               size="sm"
                               variant={dueSoon ? "primary" : "secondary"}
                             >
-                              {confirmationMutation.variables?.id === rule.id ? "Recording…" : "Confirm occurred"}
+                              {confirmationMutation.isPending && confirmationMutation.variables?.id === rule.id
+                                ? "Recording…"
+                                : "Confirm occurred"}
                             </Button>
                           </td>
                         </tr>
@@ -361,7 +328,9 @@ export function RecurringScreen() {
                           size="sm"
                           variant={dueSoon ? "primary" : "secondary"}
                         >
-                          {confirmationMutation.variables?.id === rule.id ? "Recording…" : "Confirm"}
+                          {confirmationMutation.isPending && confirmationMutation.variables?.id === rule.id
+                            ? "Recording…"
+                            : "Confirm"}
                         </Button>
                       </div>
                     </article>
