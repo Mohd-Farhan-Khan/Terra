@@ -59,7 +59,7 @@ async function signUp(label) {
       await admin.auth.admin.createUser({ email, password: testPassword, email_confirm: true }),
       "create local fixture",
     );
-    createdUsers.push(created.user.id);
+    createdUsers.push({ id: created.user.id, instance });
   }
   const { data, error } = admin
     ? await instance.auth.signInWithPassword({ email, password: testPassword })
@@ -441,9 +441,9 @@ async function verify() {
 }
 async function cleanup() {
   if (!admin) return;
-  for (const id of createdUsers) {
+  for (const { id, instance } of createdUsers) {
     assertNoError(
-      await admin.from("transactions").delete().eq("user_id", id).not("linked_refund_of", "is", null),
+      await instance.from("transactions").delete().eq("user_id", id).not("linked_refund_of", "is", null),
       "remove fixture refunds",
     );
     for (const table of [
@@ -455,24 +455,27 @@ async function cleanup() {
       "categories",
       "accounts",
     ]) {
-      assertNoError(await admin.from(table).delete().eq("user_id", id), "remove fixture " + table);
+      assertNoError(await instance.from(table).delete().eq("user_id", id), "remove fixture " + table);
     }
     assertNoError(await admin.auth.admin.deleteUser(id), "remove fixture user");
   }
 }
 let status = "passed";
 try {
-  try {
-    await verify();
-  } finally {
-    await cleanup();
-  }
+  await verify();
   console.log("Database calculations and two-user isolation passed.");
 } catch (error) {
   status = "failed";
   console.error("Database verification failed:", error.message);
   process.exitCode = 1;
 } finally {
+  try {
+    await cleanup();
+  } catch (error) {
+    console.error("Fixture cleanup failed:", error.message);
+    status = "failed";
+    process.exitCode = 1;
+  }
   await mkdir(reportDirectory, { recursive: true });
   await writeFile(
     resolve(reportDirectory, testId + ".json"),

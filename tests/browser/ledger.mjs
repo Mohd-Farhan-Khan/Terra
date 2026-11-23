@@ -21,13 +21,17 @@ test(
       password = randomUUID() + "aA!";
     const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     assert.ifError(error);
+    const owner = createClient(db, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     t.after(async () => {
       const id = data.user.id;
       for (const table of ["transactions", "accounts"]) {
-        assert.ifError((await admin.from(table).delete().eq("user_id", id)).error);
+        assert.ifError((await owner.from(table).delete().eq("user_id", id)).error);
       }
       assert.ifError((await admin.auth.admin.deleteUser(id)).error);
     });
+    assert.ifError((await owner.auth.signInWithPassword({ email, password })).error);
     const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH });
     t.after(() => browser.close());
     const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
