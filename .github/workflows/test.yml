@@ -22,13 +22,13 @@ jobs:
       - name: Verify an upgrade with existing user data
         run: |
           supabase db reset --local --version 20260730120000
-          export PGDATABASE=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-          psql -X -v ON_ERROR_STOP=1 -c "insert into auth.users(id,email) values ('00000001-0000-0000-0000-000000000001','upgrade@example.test')"
-          sed '/-- REPLACE ME/s/00000000-0000-0000-0000-000000000000/00000001-0000-0000-0000-000000000001/' supabase/tests/seed_dashboard_test_data.sql | psql -X -v ON_ERROR_STOP=1
-          psql -XAt -v ON_ERROR_STOP=1 -f supabase/checks/ledger_preflight.sql > "$RUNNER_TEMP/terra-preflight"
+          local_db_url=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          psql --dbname "$local_db_url" -X -v ON_ERROR_STOP=1 -c "insert into auth.users(id,email) values ('00000001-0000-0000-0000-000000000001','upgrade@example.test')"
+          sed '/-- REPLACE ME/s/00000000-0000-0000-0000-000000000000/00000001-0000-0000-0000-000000000001/' supabase/tests/seed_dashboard_test_data.sql | psql --dbname "$local_db_url" -X -v ON_ERROR_STOP=1
+          psql --dbname "$local_db_url" -XAt -v ON_ERROR_STOP=1 -f supabase/checks/ledger_preflight.sql > "$RUNNER_TEMP/terra-preflight"
           test ! -s "$RUNNER_TEMP/terra-preflight"
           supabase migration up --local
-          psql -X -v ON_ERROR_STOP=1 -f supabase/checks/verify_sample_upgrade.sql
+          psql --dbname "$local_db_url" -X -v ON_ERROR_STOP=1 -f supabase/checks/verify_sample_upgrade.sql
       - name: Load disposable stack settings
         shell: bash
         run: |
